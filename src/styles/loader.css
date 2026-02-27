@@ -1,0 +1,144 @@
+/* Loader and Error Styles */
+.loader-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e8f0f7 0%, #f0e8f7 100%);
+  flex-direction: column;
+  gap: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.loader-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f0f0f0;
+  border-top: 5px solid #4f46e5;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loader-container p {
+  font-size: 16px;
+  color: #666;
+  font-weight: 500;
+  animation: fadeInOut 1.5s ease-in-out infinite;
+}
+
+@keyframes fadeInOut {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Error Container */
+.error-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #ffe8e8 0%, #ffe8f0 100%);
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.error-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(200, 50, 50, 0.15);
+  max-width: 500px;
+  padding: 40px;
+  text-align: center;
+}
+
+.error-card h1 {
+  font-size: 28px;
+  color: #c33;
+  margin: 0 0 15px 0;
+}
+
+.error-card p {
+  font-size: 14px;
+  color: #666;
+  margin: 10px 0;
+  line-height: 1.6;
+}
+
+.error-hint {
+  background-color: #f5f5f5;
+  padding: 15px;
+  border-radius: 6px;
+  margin: 20px 0 !important;
+  border-left: 3px solid #c33;
+}
+
+.error-hint code {
+  display: block;
+  background-color: #222;
+  color: #00ff00;
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin: 10px 0 0 0;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+.btn-retry {
+  padding: 12px 24px;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 20px;
+}
+
+.btn-retry:hover {
+  background-color: #4338ca;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.btn-retry:active {
+  transform: scale(0.98);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .error-container {
+    padding: 10px;
+  }
+
+  .error-card {
+    padding: 30px 20px;
+  }
+
+  .error-card h1 {
+    font-size: 24px;
+  }
+
+  .error-card p {
+    font-size: 13px;
+  }
+}

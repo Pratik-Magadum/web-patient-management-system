@@ -1,9 +1,99 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { afterAll, afterEach, beforeAll, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll } from 'vitest';
 
 // Define API handlers for mocking
 export const handlers = [
+  // Hospital endpoints
+  http.get('/api/hospitals/:hospitalName', ({ params }) => {
+    const hospitalName = params.hospitalName;
+    
+    // Mock different hospitals
+    const hospitals = {
+      'eye-hospital': {
+        id: 1,
+        code: 'eye-hospital',
+        name: 'Eye Hospital Management',
+        description: 'Leading eye care center',
+        demoCredentials: [
+          {
+            role: 'Receptionist',
+            username: 'receptionist',
+            password: 'reception123',
+          },
+          {
+            role: 'Doctor Assistant',
+            username: 'assistant',
+            password: 'assistant123',
+          },
+          {
+            role: 'Doctor',
+            username: 'doctor',
+            password: 'doctor123',
+          },
+        ],
+      },
+      'city-hospital': {
+        id: 2,
+        code: 'city-hospital',
+        name: 'City Hospital',
+        description: 'Multi-specialty hospital',
+        demoCredentials: [
+          {
+            role: 'Admin',
+            username: 'admin',
+            password: 'admin123',
+          },
+        ],
+      },
+    };
+
+    const hospital = hospitals[hospitalName];
+    if (!hospital) {
+      return HttpResponse.json(
+        { error: 'Hospital not found' },
+        { status: 404 }
+      );
+    }
+
+    return HttpResponse.json(hospital);
+  }),
+
+  // Authentication endpoints
+  http.post('/api/auth/login', async ({ request }) => {
+    const body = await request.json();
+    const hospitalHeader = request.headers.get('X-Hospital-Name');
+    const { username, password } = body;
+
+    // Mock authentication
+    const validCredentials = {
+      receptionist: { password: 'reception123', role: 'receptionist', name: 'Receptionist' },
+      assistant: { password: 'assistant123', role: 'assistant', name: 'Doctor Assistant' },
+      doctor: { password: 'doctor123', role: 'doctor', name: 'Doctor' },
+      admin: { password: 'admin123', role: 'admin', name: 'Administrator' },
+    };
+
+    const credential = validCredentials[username];
+    
+    if (!credential || credential.password !== password) {
+      return HttpResponse.json(
+        { error: 'Invalid username or password' },
+        { status: 401 }
+      );
+    }
+
+    return HttpResponse.json({
+      token: 'mock-jwt-token-' + Date.now(),
+      user: {
+        id: Math.random(),
+        username,
+        role: credential.role,
+        name: credential.name,
+        hospital: hospitalHeader,
+      },
+    });
+  }),
+
   // Patient endpoints
   http.get('/api/patients', () => {
     return HttpResponse.json([
@@ -59,21 +149,9 @@ export const handlers = [
       { status: 201 }
     );
   }),
-
-  // Login endpoint
-  http.post('/api/auth/login', async ({ request }) => {
-    const body = await request.json();
-    if (body.email && body.password) {
-      return HttpResponse.json({
-        token: 'fake-jwt-token',
-        user: { id: 1, email: body.email, name: 'John Doe' },
-      });
-    }
-    return HttpResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-  }),
 ];
 
-// Setup MSW server
+// Setup MSW server for testing
 export const server = setupServer(...handlers);
 
 // Enable API mocking before all tests
@@ -84,3 +162,4 @@ afterEach(() => server.resetHandlers());
 
 // Disable API mocking after all tests
 afterAll(() => server.close());
+
