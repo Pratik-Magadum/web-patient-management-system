@@ -1,12 +1,14 @@
-import React from 'react'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import './styles.css'
 
-console.log('🚀 Initializing React application...')
-console.log('📍 Current URL:', window.location.href)
-console.log('🏥 Hostname:', window.location.hostname)
+if (import.meta.env.DEV) {
+  console.log('🚀 Initializing React application...')
+  console.log('📍 Current URL:', window.location.href)
+  console.log('🏥 Hostname:', window.location.hostname)
+}
 
 // Initialize MSW (Mock Service Worker) for API mocking
 async function initializeApp() {
@@ -32,13 +34,15 @@ async function initializeApp() {
 
     const root = createRoot(rootElement)
     root.render(
-      <React.StrictMode>
+      <StrictMode>
         <ErrorBoundary>
           <App />
         </ErrorBoundary>
-      </React.StrictMode>
+      </StrictMode>
     )
-    console.log('✅ React application mounted')
+    if (import.meta.env.DEV) {
+      console.log('✅ React application mounted')
+    }
   } catch (error) {
     console.error('❌ Failed to initialize application:', error)
     const rootElement = document.getElementById('root')

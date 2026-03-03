@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { getHospital } from '../services/api';
+import { useEffect, useState } from 'react';
+import { getHospitalDetails } from '../services/api';
+import '../styles/loader.css';
 import Login from './Login';
 import NotRegistered from './NotRegistered';
-import '../styles/loader.css';
 
 export default function HospitalLoader() {
   const [hospitalDetails, setHospitalDetails] = useState(null);
@@ -19,7 +19,7 @@ export default function HospitalLoader() {
         let hospital = null;
 
         // Check if hostname contains "-localhost" (development format)
-        if (hostname.includes('-localhost') || hostname.includes('localhost')) {
+        if (hostname.includes('-localhost')) {
           const parts = hostname.split('-localhost')[0];
           hospital = parts || null;
         }
@@ -36,24 +36,42 @@ export default function HospitalLoader() {
           hospital = pathSegments[0];
         }
 
-        // Default to 'general' hospital if no hospital name found
+        // Default to 'apollo-eye' if no hospital name found
         if (!hospital) {
-          hospital = 'general-hospital';
+          hospital = 'apollo-eye';
         }
 
+        if (import.meta.env.DEV) {
+          console.log('🏥 Hospital extracted:', hospital);
+        }
+        
         setHospitalName(hospital);
 
-        // Call getHospital API with hospital name in header
-        const details = await getHospital(hospital);
-        setHospitalDetails(details);
-
-        // Check if hospital is registered
-        const registered = details.registered === true;
-        setIsRegistered(registered);
-
+        try {
+          // Call getHospitalDetails API with subdomain
+          const hospitalResponse = await getHospitalDetails(hospital);
+          
+          // Extract hospital data from the response
+          const details = {
+            registered: true,
+            ...hospitalResponse.data,
+          };
+          
+          if (import.meta.env.DEV) {
+            console.log('✅ Hospital details loaded:', details);
+          }
+          
+          setHospitalDetails(details);
+          setIsRegistered(true);
+        } catch (apiError) {
+          console.error('❌ Failed to load hospital:', apiError.message);
+          setIsLoading(false);
+          throw apiError;
+        }
+        
         setIsLoading(false);
       } catch (err) {
-        console.error('Hospital loading error:', err);
+        console.error('❌ Hospital loading error:', err);
         setIsLoading(false);
       }
     };
