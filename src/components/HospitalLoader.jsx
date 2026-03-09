@@ -9,6 +9,7 @@ export default function HospitalLoader() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRegistered, setIsRegistered] = useState(false);
   const [hospitalName, setHospitalName] = useState('');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const loadHospital = async () => {
@@ -65,13 +66,16 @@ export default function HospitalLoader() {
           setIsRegistered(true);
         } catch (apiError) {
           console.error('❌ Failed to load hospital:', apiError.message);
+          setError(apiError.message);
+          setIsRegistered(false);
           setIsLoading(false);
-          throw apiError;
+          return;
         }
         
         setIsLoading(false);
       } catch (err) {
         console.error('❌ Hospital loading error:', err);
+        setError(err.message);
         setIsLoading(false);
       }
     };
@@ -89,12 +93,7 @@ export default function HospitalLoader() {
   }
 
   if (!hospitalDetails) {
-    return (
-      <div className="loader-container">
-        <div className="loader-spinner"></div>
-        <p>Loading...</p>
-      </div>
-    );
+    return <NotRegistered hospitalName={hospitalName} error={error} />;
   }
 
   // If hospital is not registered, show registration page
