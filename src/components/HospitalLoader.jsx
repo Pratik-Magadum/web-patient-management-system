@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { getHospitalDetails } from '../services/api';
+import { getAccessToken, getHospitalDetails, getUserRole } from '../services/api';
 import '../styles/loader.css';
 import Login from './Login';
 import NotRegistered from './NotRegistered';
+import ReceptionistDashboard from './ReceptionistDashboard';
 
 export default function HospitalLoader() {
   const [hospitalDetails, setHospitalDetails] = useState(null);
@@ -10,6 +11,10 @@ export default function HospitalLoader() {
   const [isRegistered, setIsRegistered] = useState(false);
   const [hospitalName, setHospitalName] = useState('');
   const [error, setError] = useState(null);
+  const [loggedInRole, setLoggedInRole] = useState(() => {
+    // Check if user is already logged in
+    return getAccessToken() ? getUserRole() : null;
+  });
 
   useEffect(() => {
     const loadHospital = async () => {
@@ -101,8 +106,32 @@ export default function HospitalLoader() {
     return <NotRegistered hospitalName={hospitalName} />;
   }
 
+  // If user is logged in, render dashboard based on role
+  if (loggedInRole) {
+    const handleLogout = () => {
+      setLoggedInRole(null);
+    };
+
+    switch (loggedInRole) {
+      case 'reciption':
+      case 'RECEPTIONIST':
+        return <ReceptionistDashboard hospitalDetails={hospitalDetails} onLogout={handleLogout} />;
+      default:
+        return (
+          <div style={{ padding: 40, textAlign: 'center' }}>
+            <h2>Dashboard for "{loggedInRole}" role is coming soon.</h2>
+            <button onClick={handleLogout} style={{ marginTop: 16, padding: '8px 20px', cursor: 'pointer' }}>Logout</button>
+          </div>
+        );
+    }
+  }
+
   // If hospital is registered, show login page
   return (
-    <Login hospitalName={hospitalName} hospitalDetails={hospitalDetails} />
+    <Login
+      hospitalName={hospitalName}
+      hospitalDetails={hospitalDetails}
+      onLoginSuccess={(role) => setLoggedInRole(role)}
+    />
   );
 }

@@ -121,9 +121,7 @@ export async function startMSW() {
   try {
     console.log('▶️  Starting MSW Worker...');
     await worker.start({
-      onUnhandledRequest: (req) => {
-        console.warn(`⚠️  Unhandled ${req.method} request to ${req.url}`);
-      },
+      onUnhandledRequest: 'bypass',
     });
     console.log('✅ MSW Worker started successfully');
     return true;

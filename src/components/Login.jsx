@@ -1,30 +1,33 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { loginUser } from '../services/api';
 import '../styles/login.css';
 
-export default function Login({ hospitalName, hospitalDetails }) {
+export default function Login({ hospitalName, hospitalDetails, onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleLogin = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+
+    if (!username || !password) {
+      setError('Please enter both username and password.');
+      return;
+    }
+
     setError('');
     setIsLoading(true);
 
     try {
       const response = await loginUser(hospitalName, username, password);
-      
-      // Store auth token
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      localStorage.setItem('hospitalName', hospitalName);
-      
-      // Redirect to dashboard or home page
-      window.location.href = '/dashboard';
+      const { role } = response.data;
+
+      if (onLoginSuccess) {
+        onLoginSuccess(role);
+      }
     } catch (err) {
-      setError('Invalid username or password. Please try again.');
+      setError(err.message || 'Invalid username or password. Please try again.');
       console.error('Login error:', err);
     } finally {
       setIsLoading(false);
