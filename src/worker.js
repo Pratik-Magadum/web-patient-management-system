@@ -1,4 +1,4 @@
-import { setupWorker, http, HttpResponse } from 'msw/browser';
+import { http, HttpResponse, setupWorker } from 'msw/browser';
 
 console.log('🔧 Setting up MSW (Mock Service Worker) for browser...');
 
@@ -76,40 +76,6 @@ const handlers = [
     }
 
     return HttpResponse.json(hospital);
-  }),
-
-  // Authentication endpoints
-  http.post('/api/auth/login', async ({ request }) => {
-    const body = await request.json();
-    const hospitalHeader = request.headers.get('X-Hospital-Name');
-    const { username, password } = body;
-
-    const validCredentials = {
-      receptionist: { password: 'reception123', role: 'receptionist', name: 'Receptionist' },
-      assistant: { password: 'assistant123', role: 'assistant', name: 'Doctor Assistant' },
-      doctor: { password: 'doctor123', role: 'doctor', name: 'Doctor' },
-      admin: { password: 'admin123', role: 'admin', name: 'Administrator' },
-    };
-
-    const credential = validCredentials[username];
-    
-    if (!credential || credential.password !== password) {
-      return HttpResponse.json(
-        { error: 'Invalid username or password' },
-        { status: 401 }
-      );
-    }
-
-    return HttpResponse.json({
-      token: 'mock-jwt-token-' + Date.now(),
-      user: {
-        id: Math.random().toString(36).substr(2, 9),
-        username,
-        role: credential.role,
-        name: credential.name,
-        hospital: hospitalHeader,
-      },
-    });
   }),
 ];
 

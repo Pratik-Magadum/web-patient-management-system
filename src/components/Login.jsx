@@ -20,7 +20,7 @@ export default function Login({ hospitalName, hospitalDetails, onLoginSuccess })
     setIsLoading(true);
 
     try {
-      const response = await loginUser(hospitalName, username, password);
+      const response = await loginUser(hospitalDetails?.hospitalId || hospitalDetails?.id, username, password);
       const { role } = response.data;
 
       if (onLoginSuccess) {

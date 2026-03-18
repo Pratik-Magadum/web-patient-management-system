@@ -24,33 +24,29 @@ export default function HospitalLoader() {
         const hostname = window.location.hostname;
         let hospital = null;
 
-        // Check if hostname contains "-localhost" (development format)
+        // Extract hospital name from hostname
+        // Format 1: "apollo-eye-localhost" → hospital = "apollo-eye" (dev)
+        // Format 2: "name.xyz.com" → hospital = "name" (production subdomain)
         if (hostname.includes('-localhost')) {
-          const parts = hostname.split('-localhost')[0];
-          hospital = parts || null;
-        }
-
-        // Fallback to query parameter
-        if (!hospital) {
-          const params = new URLSearchParams(window.location.search);
-          hospital = params.get('hospital');
-        }
-
-        // Fallback to path
-        if (!hospital) {
-          const pathSegments = window.location.pathname.split('/').filter(Boolean);
-          hospital = pathSegments[0];
-        }
-
-        // Default to 'apollo-eye' if no hospital name found
-        if (!hospital) {
-          hospital = 'apollo-eye';
+          const name = hostname.split('-localhost')[0];
+          hospital = name || null;
+        } else {
+          const parts = hostname.split('.');
+          hospital = parts.length > 1 ? parts[0] : null;
         }
 
         if (import.meta.env.DEV) {
           console.log('🏥 Hospital extracted:', hospital);
         }
-        
+
+        // No hospital subdomain found → redirect to register page
+        if (!hospital) {
+          setHospitalName('');
+          setIsRegistered(false);
+          setIsLoading(false);
+          return;
+        }
+
         setHospitalName(hospital);
 
         try {

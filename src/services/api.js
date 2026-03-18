@@ -202,7 +202,7 @@ export async function getHospitalDetails(subdomain) {
   };
 }
 
-export async function loginUser(hospitalName, username, password) {
+export async function loginUser(hospitalId, username, password) {
   const url = `${HOSPITAL_API_BASE_URL}/api/v1/auth/login`;
   if (import.meta.env.DEV) {
     console.log(`🔐 Attempting login for: ${username}`);
@@ -211,7 +211,7 @@ export async function loginUser(hospitalName, username, password) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ hospitalId, username, password }),
   });
 
   const result = await response.json();
@@ -220,8 +220,8 @@ export async function loginUser(hospitalName, username, password) {
     throw new Error(result.message || `Login failed: ${response.status}`);
   }
 
-  const { accessToken, refreshToken, expiresIn, role, hospitalId } = result.data;
-  storeAuthData({ accessToken, refreshToken, expiresIn, role, hospitalId, hospitalName });
+  const { accessToken, refreshToken, expiresIn, role, hospitalId: respHospitalId } = result.data;
+  storeAuthData({ accessToken, refreshToken, expiresIn, role, hospitalId: respHospitalId || hospitalId });
 
   if (import.meta.env.DEV) {
     console.log('✅ Login successful, role:', role);
