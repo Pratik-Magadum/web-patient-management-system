@@ -3,24 +3,24 @@ import { getDashboardStats, logoutUser } from '../services/api';
 import '../styles/receptionist.css';
 
 const STATIC_PATIENTS = [
-  { id: 1, name: 'John Smith', phone: '+1-555-0123', time: '09:00', type: 'New Patient', status: 'Registered' },
-  { id: 2, name: 'Emma Davis', phone: '+1-555-0124', time: '09:30', type: 'New Patient', status: 'Waiting for Pre-Diagnostic' },
-  { id: 3, name: 'Michael Chen', phone: '+1-555-0125', time: '10:00', type: 'New Patient', status: 'Pre-Diagnosed' },
-  { id: 4, name: 'Lisa Anderson', phone: '+1-555-0126', time: '10:30', type: 'New Patient', status: 'Waiting for Doctor' },
-  { id: 5, name: 'David Rodriguez', phone: '+1-555-0127', time: '11:00', type: 'New Patient', status: 'Registered' },
-  { id: 6, name: 'Sarah Wilson', phone: '+1-555-0128', time: '11:30', type: 'Follow-up', status: 'Waiting for Pre-Diagnostic' },
-  { id: 7, name: 'James Taylor', phone: '+1-555-0129', time: '12:00', type: 'New Patient', status: 'Completed' },
-  { id: 8, name: 'Emily Brown', phone: '+1-555-0130', time: '12:30', type: 'New Patient', status: 'Completed' },
-  { id: 9, name: 'Robert Martinez', phone: '+1-555-0131', time: '13:00', type: 'Follow-up', status: 'Waiting for Doctor' },
-  { id: 10, name: 'Jennifer Lee', phone: '+1-555-0132', time: '13:30', type: 'New Patient', status: 'Registered' },
-  { id: 11, name: 'William Garcia', phone: '+1-555-0133', time: '14:00', type: 'New Patient', status: 'Waiting for Pre-Diagnostic' },
-  { id: 12, name: 'Amanda Clark', phone: '+1-555-0134', time: '14:30', type: 'Follow-up', status: 'Pre-Diagnosed' },
-  { id: 13, name: 'Christopher Hall', phone: '+1-555-0135', time: '15:00', type: 'New Patient', status: 'Waiting for Doctor' },
-  { id: 14, name: 'Jessica White', phone: '+1-555-0136', time: '15:30', type: 'New Patient', status: 'Registered' },
-  { id: 15, name: 'Daniel Harris', phone: '+1-555-0137', time: '16:00', type: 'New Patient', status: 'Completed' },
-  { id: 16, name: 'Ashley King', phone: '+1-555-0138', time: '16:30', type: 'Follow-up', status: 'Completed' },
-  { id: 17, name: 'Matthew Wright', phone: '+1-555-0139', time: '17:00', type: 'New Patient', status: 'Waiting for Pre-Diagnostic' },
-  { id: 18, name: 'Sophia Lopez', phone: '+1-555-0140', time: '17:30', type: 'New Patient', status: 'Registered' },
+  { id: 1, name: 'John Smith', phone: '+1-555-0123', time: '09:00', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 09:00 AM' },
+  { id: 2, name: 'Emma Davis', phone: '+1-555-0124', time: '09:30', type: 'New Patient', status: 'Waiting for Pre-Diagnostic', appointmentDateTime: '2025-09-29 09:30 AM' },
+  { id: 3, name: 'Michael Chen', phone: '+1-555-0125', time: '10:00', type: 'New Patient', status: 'Pre-Diagnosed', appointmentDateTime: '2025-09-29 10:00 AM' },
+  { id: 4, name: 'Lisa Anderson', phone: '+1-555-0126', time: '10:30', type: 'New Patient', status: 'Waiting for Doctor', appointmentDateTime: '2025-09-29 10:30 AM' },
+  { id: 5, name: 'David Rodriguez', phone: '+1-555-0127', time: '11:00', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 11:00 AM' },
+  { id: 6, name: 'Sarah Wilson', phone: '+1-555-0128', time: '11:30', type: 'Follow-up', status: 'Waiting for Pre-Diagnostic', appointmentDateTime: '2025-09-29 11:30 AM' },
+  { id: 7, name: 'James Taylor', phone: '+1-555-0129', time: '12:00', type: 'New Patient', status: 'Completed', appointmentDateTime: '2025-09-29 12:00 PM' },
+  { id: 8, name: 'Emily Brown', phone: '+1-555-0130', time: '12:30', type: 'New Patient', status: 'Completed', appointmentDateTime: '2025-09-29 12:30 PM' },
+  { id: 9, name: 'Robert Martinez', phone: '+1-555-0131', time: '13:00', type: 'Follow-up', status: 'Waiting for Doctor', appointmentDateTime: '2025-09-29 01:00 PM' },
+  { id: 10, name: 'Jennifer Lee', phone: '+1-555-0132', time: '13:30', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 01:30 PM' },
+  { id: 11, name: 'William Garcia', phone: '+1-555-0133', time: '14:00', type: 'New Patient', status: 'Waiting for Pre-Diagnostic', appointmentDateTime: '2025-09-29 02:00 PM' },
+  { id: 12, name: 'Amanda Clark', phone: '+1-555-0134', time: '14:30', type: 'Follow-up', status: 'Pre-Diagnosed', appointmentDateTime: '2025-09-29 02:30 PM' },
+  { id: 13, name: 'Christopher Hall', phone: '+1-555-0135', time: '15:00', type: 'New Patient', status: 'Waiting for Doctor', appointmentDateTime: '2025-09-29 03:00 PM' },
+  { id: 14, name: 'Jessica White', phone: '+1-555-0136', time: '15:30', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 03:30 PM' },
+  { id: 15, name: 'Daniel Harris', phone: '+1-555-0137', time: '16:00', type: 'New Patient', status: 'Completed', appointmentDateTime: '2025-09-29 04:00 PM' },
+  { id: 16, name: 'Ashley King', phone: '+1-555-0138', time: '16:30', type: 'Follow-up', status: 'Completed', appointmentDateTime: '2025-09-29 04:30 PM' },
+  { id: 17, name: 'Matthew Wright', phone: '+1-555-0139', time: '17:00', type: 'New Patient', status: 'Waiting for Pre-Diagnostic', appointmentDateTime: '2025-09-29 05:00 PM' },
+  { id: 18, name: 'Sophia Lopez', phone: '+1-555-0140', time: '17:30', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 05:30 PM' },
 ];
 
 const STATUS_CLASS_MAP = {
@@ -171,6 +171,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
 
         <div className="rd-patient-table-header">
           <div className="rd-col-name">Patient Name</div>
+          <div className="rd-col-datetime">Appointment Date & Time</div>
           <div className="rd-col-mobile">Mobile Number</div>
           <div className="rd-col-status">Status</div>
         </div>
@@ -187,10 +188,10 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                 </div>
                 <div className="rd-patient-info">
                   <div className="rd-patient-name">{patient.name}</div>
-                  <div className="rd-patient-time">{patient.time}</div>
                   <span className="rd-patient-type-badge">{patient.type}</span>
                 </div>
               </div>
+              <div className="rd-col-datetime rd-patient-datetime">{patient.appointmentDateTime}</div>
               <div className="rd-col-mobile rd-patient-mobile">{patient.phone}</div>
               <div className="rd-col-status">
                 <span className={`rd-patient-status ${getStatusClass(patient.status)}`}>

@@ -4,7 +4,7 @@
   min-height: 100vh;
   background-color: #f9fafb;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  max-width: 1100px;
+  max-width: 1300px;
   margin: 0 auto;
 }
 
@@ -219,7 +219,7 @@
 /* Patient Table Header */
 .rd-patient-table-header {
   display: grid;
-  grid-template-columns: 1fr 500px 220px;
+  grid-template-columns: 2fr 2fr 2fr 2fr;
   padding: 12px 24px;
   border-bottom: 1px solid #e5e7eb;
   background: #f9fafb;
@@ -238,7 +238,7 @@
 
 .rd-patient-card {
   display: grid;
-  grid-template-columns: 1fr 500px 220px;
+  grid-template-columns: 2fr 2fr 2fr 2fr;
   align-items: center;
   padding: 16px 24px;
   border-bottom: 1px solid #f3f4f6;
@@ -282,6 +282,15 @@
 
 
 .rd-patient-mobile {
+  font-size: 13px;
+  color: #374151;
+}
+
+.rd-col-datetime {
+  text-align: center;
+}
+
+.rd-patient-datetime {
   font-size: 13px;
   color: #374151;
 }
@@ -388,6 +397,12 @@
     grid-template-columns: 1fr;
     gap: 8px;
     padding: 14px 16px;
+  }
+
+  .rd-col-datetime {
+    text-align: left;
+    padding-left: 54px;
+    font-size: 13px;
   }
 
   .rd-patient-name-cell {
