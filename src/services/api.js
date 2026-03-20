@@ -151,28 +151,6 @@ export async function logoutUser() {
   }
 }
 
-/**
- * Fetch today's dashboard stats for stat cards.
- */
-export async function getDashboardStats() {
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/dashboard/today`;
-  if (import.meta.env.DEV) {
-    console.log('📊 Fetching dashboard stats...');
-  }
-
-  const response = await authenticatedFetch(url, { method: 'GET' });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch dashboard stats: ${response.status}`);
-  }
-
-  const data = await response.json();
-  if (import.meta.env.DEV) {
-    console.log('✅ Dashboard stats received:', data);
-  }
-  return data;
-}
-
 export async function getHospitalDetails(subdomain) {
   const url = `${HOSPITAL_API_BASE_URL}/api/v1/hospitals/${subdomain}`;
   if (import.meta.env.DEV) {
@@ -225,6 +203,39 @@ export async function loginUser(hospitalId, username, password) {
 
   if (import.meta.env.DEV) {
     console.log('✅ Login successful, role:', role);
+  }
+  return result;
+}
+
+/**
+ * Search patients by name, phone, and date range.
+ * If no params are provided, returns today's patients by default (server behavior).
+ */
+export async function searchPatients({ name, phone, fromDate, toDate } = {}) {
+  const params = new URLSearchParams();
+  if (name) params.append('name', name);
+  if (phone) params.append('phone', phone);
+  if (fromDate) params.append('fromDate', fromDate);
+  if (toDate) params.append('toDate', toDate);
+
+  const query = params.toString();
+  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/search${query ? `?${query}` : ''}`;
+  if (import.meta.env.DEV) {
+    console.log('🔍 Searching patients:', { name, phone, fromDate, toDate });
+  }
+
+  const response = await authenticatedFetch(url, {
+    method: 'GET',
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.message || `Search failed: ${response.status}`);
+  }
+
+  if (import.meta.env.DEV) {
+    console.log('✅ Patient search results:', result);
   }
   return result;
 }

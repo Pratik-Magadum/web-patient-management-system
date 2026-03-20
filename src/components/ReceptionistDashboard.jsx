@@ -1,44 +1,60 @@
-import { useEffect, useState } from 'react';
-import { getDashboardStats, logoutUser } from '../services/api';
+import { useCallback, useEffect, useState } from 'react';
+import { logoutUser, searchPatients } from '../services/api';
 import '../styles/receptionist.css';
 
-const STATIC_PATIENTS = [
-  { id: 1, name: 'John Smith', phone: '+1-555-0123', time: '09:00', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 09:00 AM' },
-  { id: 2, name: 'Emma Davis', phone: '+1-555-0124', time: '09:30', type: 'New Patient', status: 'Waiting for Pre-Diagnostic', appointmentDateTime: '2025-09-29 09:30 AM' },
-  { id: 3, name: 'Michael Chen', phone: '+1-555-0125', time: '10:00', type: 'New Patient', status: 'Pre-Diagnosed', appointmentDateTime: '2025-09-29 10:00 AM' },
-  { id: 4, name: 'Lisa Anderson', phone: '+1-555-0126', time: '10:30', type: 'New Patient', status: 'Waiting for Doctor', appointmentDateTime: '2025-09-29 10:30 AM' },
-  { id: 5, name: 'David Rodriguez', phone: '+1-555-0127', time: '11:00', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 11:00 AM' },
-  { id: 6, name: 'Sarah Wilson', phone: '+1-555-0128', time: '11:30', type: 'Follow-up', status: 'Waiting for Pre-Diagnostic', appointmentDateTime: '2025-09-29 11:30 AM' },
-  { id: 7, name: 'James Taylor', phone: '+1-555-0129', time: '12:00', type: 'New Patient', status: 'Completed', appointmentDateTime: '2025-09-29 12:00 PM' },
-  { id: 8, name: 'Emily Brown', phone: '+1-555-0130', time: '12:30', type: 'New Patient', status: 'Completed', appointmentDateTime: '2025-09-29 12:30 PM' },
-  { id: 9, name: 'Robert Martinez', phone: '+1-555-0131', time: '13:00', type: 'Follow-up', status: 'Waiting for Doctor', appointmentDateTime: '2025-09-29 01:00 PM' },
-  { id: 10, name: 'Jennifer Lee', phone: '+1-555-0132', time: '13:30', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 01:30 PM' },
-  { id: 11, name: 'William Garcia', phone: '+1-555-0133', time: '14:00', type: 'New Patient', status: 'Waiting for Pre-Diagnostic', appointmentDateTime: '2025-09-29 02:00 PM' },
-  { id: 12, name: 'Amanda Clark', phone: '+1-555-0134', time: '14:30', type: 'Follow-up', status: 'Pre-Diagnosed', appointmentDateTime: '2025-09-29 02:30 PM' },
-  { id: 13, name: 'Christopher Hall', phone: '+1-555-0135', time: '15:00', type: 'New Patient', status: 'Waiting for Doctor', appointmentDateTime: '2025-09-29 03:00 PM' },
-  { id: 14, name: 'Jessica White', phone: '+1-555-0136', time: '15:30', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 03:30 PM' },
-  { id: 15, name: 'Daniel Harris', phone: '+1-555-0137', time: '16:00', type: 'New Patient', status: 'Completed', appointmentDateTime: '2025-09-29 04:00 PM' },
-  { id: 16, name: 'Ashley King', phone: '+1-555-0138', time: '16:30', type: 'Follow-up', status: 'Completed', appointmentDateTime: '2025-09-29 04:30 PM' },
-  { id: 17, name: 'Matthew Wright', phone: '+1-555-0139', time: '17:00', type: 'New Patient', status: 'Waiting for Pre-Diagnostic', appointmentDateTime: '2025-09-29 05:00 PM' },
-  { id: 18, name: 'Sophia Lopez', phone: '+1-555-0140', time: '17:30', type: 'New Patient', status: 'Registered', appointmentDateTime: '2025-09-29 05:30 PM' },
-];
-
 const STATUS_CLASS_MAP = {
-  'Registered': 'status-registered',
-  'Waiting for Pre-Diagnostic': 'status-waiting-prediag',
-  'Pre-Diagnosed': 'status-prediagnosed',
-  'Waiting for Doctor': 'status-waiting-doctor',
-  'Completed': 'status-completed',
+  'REGISTERED': 'status-registered',
+  'WAITING_FOR_PRE_DIAGNOSTIC': 'status-waiting-prediag',
+  'PRE_DIAGNOSED': 'status-prediagnosed',
+  'WAITING_FOR_DOCTOR': 'status-waiting-doctor',
+  'COMPLETED': 'status-completed',
+};
+
+const STATUS_DISPLAY = {
+  'REGISTERED': 'Registered',
+  'WAITING_FOR_PRE_DIAGNOSTIC': 'Waiting for Pre-Diagnostic',
+  'PRE_DIAGNOSED': 'Pre-Diagnosed',
+  'WAITING_FOR_DOCTOR': 'Waiting for Doctor',
+  'COMPLETED': 'Completed',
+};
+
+const VISIT_TYPE_DISPLAY = {
+  'NEW_VISIT': 'New Patient',
+  'FOLLOW_UP': 'Follow-up',
 };
 
 function getStatusClass(status) {
   return STATUS_CLASS_MAP[status] || '';
 }
 
+function getToday() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function formatTime12h(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':');
+  const hour = parseInt(h, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${m} ${ampm}`;
+}
+
 export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDate, setSelectedDate] = useState('2025-09-29');
+  const [fromDate, setFromDate] = useState(getToday());
+  const [toDate, setToDate] = useState(getToday());
+  const [pendingFrom, setPendingFrom] = useState(getToday());
+  const [pendingTo, setPendingTo] = useState(getToday());
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const t = new Date(); return { year: t.getFullYear(), month: t.getMonth() };
+  });
+  const [rangeStart, setRangeStart] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [stats, setStats] = useState({
     totalPatients: 0,
     completedPatients: 0,
@@ -46,34 +62,55 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     followUpPatients: 0,
   });
 
-  useEffect(() => {
-    getDashboardStats()
-      .then((data) => {
-        setStats({
-          totalPatients: data.totalPatients,
-          completedPatients: data.completedPatients,
-          newPatients: data.newPatients,
-          followUpPatients: data.followUpPatients,
-        });
-      })
-      .catch((err) => console.error('Failed to load dashboard stats:', err));
+  const fetchPatients = useCallback(async ({ name, phone, fromDate, toDate } = {}) => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const data = await searchPatients({ name, phone, fromDate, toDate });
+      setStats({
+        totalPatients: data.totalPatients ?? 0,
+        completedPatients: data.completedPatients ?? 0,
+        newPatients: data.newPatients ?? 0,
+        followUpPatients: data.followUpPatients ?? 0,
+      });
+      setPatients(Array.isArray(data.patients) ? data.patients : []);
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to fetch patients.');
+      setPatients([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const filteredPatients = STATIC_PATIENTS.filter(p => {
-    const matchesSearch = !searchQuery ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.phone.includes(searchQuery);
+  // Fetch patients on initial load (today's data)
+  useEffect(() => {
+    fetchPatients({ fromDate, toDate });
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-    let matchesFilter = true;
-    if (activeFilter === 'completed') {
-      matchesFilter = p.status === 'Completed';
-    } else if (activeFilter === 'new') {
-      matchesFilter = p.type === 'New Patient';
-    } else if (activeFilter === 'followup') {
-      matchesFilter = p.type === 'Follow-up';
-    }
+  // Debounced search by name/phone when user types in the search box
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    const timer = setTimeout(() => {
+      if (!trimmed) {
+        fetchPatients({ fromDate, toDate });
+        return;
+      }
+      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
+      fetchPatients({
+        name: isPhone ? undefined : trimmed,
+        phone: isPhone ? trimmed : undefined,
+        fromDate,
+        toDate,
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery, fromDate, toDate, fetchPatients]);
 
-    return matchesSearch && matchesFilter;
+  const filteredPatients = patients.filter((p) => {
+    if (activeFilter === 'completed') return p.appointmentStatus === 'COMPLETED';
+    if (activeFilter === 'new') return p.visitType === 'NEW_VISIT';
+    if (activeFilter === 'followup') return p.visitType === 'FOLLOW_UP';
+    return true;
   });
 
   const formatDisplayDate = (dateStr) => {
@@ -87,6 +124,94 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       onLogout();
     } else {
       window.location.href = '/';
+    }
+  };
+
+  const today = getToday();
+
+  const buildCalendarDays = () => {
+    const { year, month } = calendarMonth;
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const days = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push(dateStr);
+    }
+    return days;
+  };
+
+  const handleCalendarDayClick = (dateStr) => {
+    if (dateStr > today) return;
+    if (!rangeStart) {
+      setRangeStart(dateStr);
+      setPendingFrom(dateStr);
+      setPendingTo(dateStr);
+    } else {
+      const start = dateStr < rangeStart ? dateStr : rangeStart;
+      const end = dateStr < rangeStart ? rangeStart : dateStr;
+      setPendingFrom(start);
+      setPendingTo(end);
+      setRangeStart(null);
+    }
+  };
+
+  const isInRange = (dateStr) => {
+    if (!dateStr) return false;
+    if (rangeStart) {
+      return dateStr === rangeStart;
+    }
+    return dateStr >= pendingFrom && dateStr <= pendingTo;
+  };
+
+  const isRangeEdge = (dateStr) => {
+    if (!dateStr) return false;
+    return dateStr === pendingFrom || dateStr === pendingTo;
+  };
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const prevMonth = () => {
+    setCalendarMonth((prev) => {
+      const m = prev.month - 1;
+      return m < 0 ? { year: prev.year - 1, month: 11 } : { year: prev.year, month: m };
+    });
+  };
+
+  const nextMonth = () => {
+    const next = calendarMonth.month + 1 > 11
+      ? { year: calendarMonth.year + 1, month: 0 }
+      : { year: calendarMonth.year, month: calendarMonth.month + 1 };
+    const firstOfNext = `${next.year}-${String(next.month + 1).padStart(2, '0')}-01`;
+    if (firstOfNext > today) return;
+    setCalendarMonth(next);
+  };
+
+  const applyPreset = (from, to) => {
+    setPendingFrom(from);
+    setPendingTo(to);
+    setRangeStart(null);
+    const d = new Date(from);
+    setCalendarMonth({ year: d.getFullYear(), month: d.getMonth() });
+  };
+
+  const handleApplyDateRange = () => {
+    setFromDate(pendingFrom);
+    setToDate(pendingTo);
+    setRangeStart(null);
+    setDateRangeOpen(false);
+    const trimmed = searchQuery.trim();
+    if (trimmed) {
+      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
+      fetchPatients({
+        name: isPhone ? undefined : trimmed,
+        phone: isPhone ? trimmed : undefined,
+        fromDate: pendingFrom,
+        toDate: pendingTo,
+      });
+    } else {
+      fetchPatients({ fromDate: pendingFrom, toDate: pendingTo });
     }
   };
 
@@ -118,12 +243,73 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
           />
         </div>
         <div className="rd-actions-right">
-          <input
-            type="date"
-            className="rd-date-picker"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
+          <div className="rd-date-range-wrapper">
+            <button
+              className="rd-date-range-btn"
+              onClick={() => {
+                if (!dateRangeOpen) {
+                  setPendingFrom(fromDate);
+                  setPendingTo(toDate);
+                  setRangeStart(null);
+                }
+                setDateRangeOpen(!dateRangeOpen);
+              }}
+            >
+              <span className="rd-date-range-icon">📅</span>
+              <span className="rd-date-range-text">
+                {fromDate === toDate
+                  ? formatDisplayDate(fromDate)
+                  : `${formatDisplayDate(fromDate)}  →  ${formatDisplayDate(toDate)}`}
+              </span>
+              <span className={`rd-date-range-arrow ${dateRangeOpen ? 'open' : ''}`}>▾</span>
+            </button>
+            {dateRangeOpen && (
+              <div className="rd-date-range-dropdown">
+                <div className="rd-cal-header">
+                  <button className="rd-cal-nav" onClick={prevMonth}>‹</button>
+                  <span className="rd-cal-title">{monthNames[calendarMonth.month]} {calendarMonth.year}</span>
+                  <button className="rd-cal-nav" onClick={nextMonth}>›</button>
+                </div>
+                <div className="rd-cal-weekdays">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                    <span key={d} className="rd-cal-wd">{d}</span>
+                  ))}
+                </div>
+                <div className="rd-cal-grid">
+                  {buildCalendarDays().map((dateStr, i) => (
+                    <button
+                      key={i}
+                      className={`rd-cal-day${!dateStr ? ' rd-cal-empty' : ''}${dateStr && dateStr > today ? ' rd-cal-disabled' : ''}${dateStr && isRangeEdge(dateStr) ? ' rd-cal-edge' : ''}${dateStr && isInRange(dateStr) && !isRangeEdge(dateStr) ? ' rd-cal-in-range' : ''}${dateStr === today ? ' rd-cal-today' : ''}`}
+                      disabled={!dateStr || dateStr > today}
+                      onClick={() => dateStr && handleCalendarDayClick(dateStr)}
+                    >
+                      {dateStr ? parseInt(dateStr.split('-')[2], 10) : ''}
+                    </button>
+                  ))}
+                </div>
+                {rangeStart && (
+                  <div className="rd-cal-hint">Click another date to complete the range</div>
+                )}
+                <div className="rd-cal-selected-range">
+                  <div className="rd-cal-range-item">
+                    <span className="rd-cal-range-label">From:</span>
+                    <span className="rd-cal-range-value">{formatDisplayDate(pendingFrom)}</span>
+                  </div>
+                  <span className="rd-cal-range-arrow">→</span>
+                  <div className="rd-cal-range-item">
+                    <span className="rd-cal-range-label">To:</span>
+                    <span className="rd-cal-range-value">{formatDisplayDate(pendingTo)}</span>
+                  </div>
+                </div>
+                <div className="rd-date-presets">
+                  <button className="rd-preset-btn" onClick={() => applyPreset(getToday(), getToday())}>Today</button>
+                  <button className="rd-preset-btn" onClick={() => { const d = new Date(); d.setDate(d.getDate() - 7); applyPreset(d.toISOString().split('T')[0], getToday()); }}>Last 7 days</button>
+                  <button className="rd-preset-btn" onClick={() => { const d = new Date(); d.setDate(d.getDate() - 30); applyPreset(d.toISOString().split('T')[0], getToday()); }}>Last 30 days</button>
+                </div>
+                <button className="rd-date-apply-btn" onClick={handleApplyDateRange}>Apply</button>
+              </div>
+            )}
+          </div>
           <button className="rd-new-patient-btn">+ New Patient</button>
         </div>
       </div>
@@ -134,7 +320,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
           className={`rd-stat-card ${activeFilter === 'all' ? 'rd-stat-active' : ''}`}
           onClick={() => setActiveFilter('all')}
         >
-          <div className="rd-stat-label">📅 Today's Appointments</div>
+          <div className="rd-stat-label">📅 Appointments</div>
           <div className="rd-stat-value">{stats.totalPatients}</div>
         </div>
         <div
@@ -164,7 +350,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       <div className="rd-patient-list-container">
         <div className="rd-patient-list-header">
           <h2 className="rd-patient-list-title">
-            All Patient Appointments · {formatDisplayDate(selectedDate)}
+            All Patient Appointments · {fromDate === toDate ? formatDisplayDate(fromDate) : `${formatDisplayDate(fromDate)} to ${formatDisplayDate(toDate)}`}
           </h2>
           <span className="rd-patient-count">{filteredPatients.length} patients</span>
         </div>
@@ -177,8 +363,14 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         </div>
 
         <div className="rd-patient-list">
-          {filteredPatients.map((patient) => (
-            <div key={patient.id} className="rd-patient-card">
+          {loading && (
+            <div className="rd-no-results">Loading patients...</div>
+          )}
+          {!loading && errorMsg && (
+            <div className="rd-no-results rd-error-msg">{errorMsg}</div>
+          )}
+          {!loading && !errorMsg && filteredPatients.map((patient, index) => (
+            <div key={`${patient.patientName}-${patient.appointmentTime}-${index}`} className="rd-patient-card">
               <div className="rd-col-name rd-patient-name-cell">
                 <div className="rd-patient-avatar">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -187,21 +379,23 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                   </svg>
                 </div>
                 <div className="rd-patient-info">
-                  <div className="rd-patient-name">{patient.name}</div>
-                  <span className="rd-patient-type-badge">{patient.type}</span>
+                  <div className="rd-patient-name">{patient.patientName}</div>
+                  <span className="rd-patient-type-badge">{VISIT_TYPE_DISPLAY[patient.visitType] || patient.visitType}</span>
                 </div>
               </div>
-              <div className="rd-col-datetime rd-patient-datetime">{patient.appointmentDateTime}</div>
-              <div className="rd-col-mobile rd-patient-mobile">{patient.phone}</div>
+              <div className="rd-col-datetime rd-patient-datetime">
+                {patient.appointmentDate} {formatTime12h(patient.appointmentTime)}
+              </div>
+              <div className="rd-col-mobile rd-patient-mobile">{patient.mobileNumber}</div>
               <div className="rd-col-status">
-                <span className={`rd-patient-status ${getStatusClass(patient.status)}`}>
-                  {patient.status}
+                <span className={`rd-patient-status ${getStatusClass(patient.appointmentStatus)}`}>
+                  {STATUS_DISPLAY[patient.appointmentStatus] || patient.appointmentStatus}
                 </span>
               </div>
             </div>
           ))}
 
-          {filteredPatients.length === 0 && (
+          {!loading && !errorMsg && filteredPatients.length === 0 && (
             <div className="rd-no-results">No patients found matching your search.</div>
           )}
         </div>
