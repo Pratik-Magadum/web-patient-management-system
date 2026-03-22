@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { logoutUser, searchPatients } from '../services/api';
+import { logoutUser, searchPatients, searchPatientsByNamePhone } from '../services/api';
 import '../styles/receptionist.css';
 
 const STATUS_CLASS_MAP = {
@@ -62,11 +62,11 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     followUpPatients: 0,
   });
 
-  const fetchPatients = useCallback(async ({ name, phone, fromDate, toDate } = {}) => {
+  const fetchPatients = useCallback(async ({ fromDate, toDate } = {}) => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const data = await searchPatients({ name, phone, fromDate, toDate });
+      const data = await searchPatients({ fromDate, toDate });
       setStats({
         totalPatients: data.totalPatients ?? 0,
         completedPatients: data.completedPatients ?? 0,
@@ -74,6 +74,20 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         followUpPatients: data.followUpPatients ?? 0,
       });
       setPatients(Array.isArray(data.patients) ? data.patients : []);
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to fetch patients.');
+      setPatients([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchPatientsByNamePhone = useCallback(async ({ name, phonenumber } = {}) => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const data = await searchPatientsByNamePhone({ name, phonenumber });
+      setPatients(Array.isArray(data) ? data : []);
     } catch (err) {
       setErrorMsg(err.message || 'Failed to fetch patients.');
       setPatients([]);
@@ -96,15 +110,13 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         return;
       }
       const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
-      fetchPatients({
+      fetchPatientsByNamePhone({
         name: isPhone ? undefined : trimmed,
-        phone: isPhone ? trimmed : undefined,
-        fromDate,
-        toDate,
+        phonenumber: isPhone ? trimmed : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, fromDate, toDate, fetchPatients]);
+  }, [searchQuery, fromDate, toDate, fetchPatients, fetchPatientsByNamePhone]);
 
   const filteredPatients = patients.filter((p) => {
     if (activeFilter === 'completed') return p.appointmentStatus === 'COMPLETED';
@@ -201,18 +213,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setToDate(pendingTo);
     setRangeStart(null);
     setDateRangeOpen(false);
-    const trimmed = searchQuery.trim();
-    if (trimmed) {
-      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
-      fetchPatients({
-        name: isPhone ? undefined : trimmed,
-        phone: isPhone ? trimmed : undefined,
-        fromDate: pendingFrom,
-        toDate: pendingTo,
-      });
-    } else {
-      fetchPatients({ fromDate: pendingFrom, toDate: pendingTo });
-    }
+    fetchPatients({ fromDate: pendingFrom, toDate: pendingTo });
   };
 
   return (

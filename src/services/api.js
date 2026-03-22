@@ -239,3 +239,33 @@ export async function searchPatients({ name, phone, fromDate, toDate } = {}) {
   }
   return result;
 }
+
+/**
+ * Search patients by name or phone number.
+ */
+export async function searchPatientsByNamePhone({ name, phonenumber } = {}) {
+  const params = new URLSearchParams();
+  if (name) params.append('name', name);
+  if (phonenumber) params.append('phonenumber', phonenumber);
+
+  const query = params.toString();
+  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/search/by-name-phone${query ? `?${query}` : ''}`;
+  if (import.meta.env.DEV) {
+    console.log('🔍 Searching patients by name/phone:', { name, phonenumber });
+  }
+
+  const response = await authenticatedFetch(url, {
+    method: 'GET',
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.message || `Search failed: ${response.status}`);
+  }
+
+  if (import.meta.env.DEV) {
+    console.log('✅ Patient name/phone search results:', result);
+  }
+  return result;
+}
