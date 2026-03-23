@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { logoutUser, searchPatients, searchPatientsByNamePhone } from '../services/api';
+import { deletePatient, logoutUser, searchPatients, searchPatientsByNamePhone } from '../services/api';
 import '../styles/receptionist.css';
 
 const STATUS_CLASS_MAP = {
@@ -55,6 +55,10 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [pageNumber, setPageNumber] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
   const [stats, setStats] = useState({
     totalPatients: 0,
     completedPatients: 0,
@@ -62,11 +66,11 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     followUpPatients: 0,
   });
 
-  const fetchPatients = useCallback(async ({ fromDate, toDate } = {}) => {
+  const fetchPatients = useCallback(async ({ fromDate, toDate, page = 0, size = 10 } = {}) => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const data = await searchPatients({ fromDate, toDate });
+      const data = await searchPatients({ fromDate, toDate, page, size });
       setStats({
         totalPatients: data.totalPatients ?? 0,
         completedPatients: data.completedPatients ?? 0,
@@ -74,6 +78,9 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         followUpPatients: data.followUpPatients ?? 0,
       });
       setPatients(Array.isArray(data.patients) ? data.patients : []);
+      setTotalPages(data.totalPages ?? 0);
+      setTotalElements(data.totalPatients ?? 0);
+      setPageNumber(data.currentPage ?? page);
     } catch (err) {
       setErrorMsg(err.message || 'Failed to fetch patients.');
       setPatients([]);
@@ -82,12 +89,14 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     }
   }, []);
 
-  const fetchPatientsByNamePhone = useCallback(async ({ name, phonenumber } = {}) => {
+  const fetchPatientsByNamePhone = useCallback(async ({ name, phonenumber, page = 0, size = 10 } = {}) => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const data = await searchPatientsByNamePhone({ name, phonenumber });
+      const data = await searchPatientsByNamePhone({ name, phonenumber, pageNumber: page, pageSize: size });
       setPatients(Array.isArray(data) ? data : []);
+      setTotalPages(0);
+      setTotalElements(Array.isArray(data) ? data.length : 0);
     } catch (err) {
       setErrorMsg(err.message || 'Failed to fetch patients.');
       setPatients([]);
@@ -98,25 +107,73 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
 
   // Fetch patients on initial load (today's data)
   useEffect(() => {
-    fetchPatients({ fromDate, toDate });
+    fetchPatients({ fromDate, toDate, page: 0, size: pageSize });
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search by name/phone when user types in the search box
   useEffect(() => {
     const trimmed = searchQuery.trim();
     const timer = setTimeout(() => {
+      setPageNumber(0);
       if (!trimmed) {
-        fetchPatients({ fromDate, toDate });
+        fetchPatients({ fromDate, toDate, page: 0, size: pageSize });
         return;
       }
       const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
       fetchPatientsByNamePhone({
         name: isPhone ? undefined : trimmed,
         phonenumber: isPhone ? trimmed : undefined,
+        page: 0,
+        size: pageSize,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, fromDate, toDate, fetchPatients, fetchPatientsByNamePhone]);
+  }, [searchQuery, fromDate, toDate, fetchPatients, fetchPatientsByNamePhone, pageSize]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 0 || newPage >= totalPages) return;
+    setPageNumber(newPage);
+    const trimmed = searchQuery.trim();
+    if (trimmed) {
+      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
+      fetchPatientsByNamePhone({
+        name: isPhone ? undefined : trimmed,
+        phonenumber: isPhone ? trimmed : undefined,
+        page: newPage,
+        size: pageSize,
+      });
+    } else {
+      fetchPatients({ fromDate, toDate, page: newPage, size: pageSize });
+    }
+  };
+
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(newSize);
+    setPageNumber(0);
+    const trimmed = searchQuery.trim();
+    if (trimmed) {
+      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
+      fetchPatientsByNamePhone({
+        name: isPhone ? undefined : trimmed,
+        phonenumber: isPhone ? trimmed : undefined,
+        page: 0,
+        size: newSize,
+      });
+    } else {
+      fetchPatients({ fromDate, toDate, page: 0, size: newSize });
+    }
+  };
+
+  const handleDeletePatient = async (patientId) => {
+    if (!patientId) return;
+    if (!window.confirm('Are you sure you want to delete this patient?')) return;
+    try {
+      await deletePatient(patientId);
+      fetchPatients({ fromDate, toDate, page: pageNumber, size: pageSize });
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to delete patient.');
+    }
+  };
 
   const filteredPatients = patients.filter((p) => {
     if (activeFilter === 'completed') return p.appointmentStatus === 'COMPLETED';
@@ -213,7 +270,8 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setToDate(pendingTo);
     setRangeStart(null);
     setDateRangeOpen(false);
-    fetchPatients({ fromDate: pendingFrom, toDate: pendingTo });
+    setPageNumber(0);
+    fetchPatients({ fromDate: pendingFrom, toDate: pendingTo, page: 0, size: pageSize });
   };
 
   return (
@@ -361,6 +419,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
           <div className="rd-col-datetime">Appointment Date & Time</div>
           <div className="rd-col-mobile">Mobile Number</div>
           <div className="rd-col-status">Status</div>
+          <div className="rd-col-action">Action</div>
         </div>
 
         <div className="rd-patient-list">
@@ -393,6 +452,21 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                   {STATUS_DISPLAY[patient.appointmentStatus] || patient.appointmentStatus}
                 </span>
               </div>
+              <div className="rd-col-action">
+                <button
+                  className="rd-delete-btn"
+                  title="Delete patient"
+                  onClick={() => handleDeletePatient(patient.patientId)}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </button>
+              </div>
             </div>
           ))}
 
@@ -400,6 +474,67 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
             <div className="rd-no-results">No patients found matching your search.</div>
           )}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 0 && (
+          <div className="rd-pagination">
+            <div className="rd-pagination-info">
+              Showing {pageNumber * pageSize + 1}–{Math.min((pageNumber + 1) * pageSize, totalElements)} of {totalElements}
+            </div>
+            <div className="rd-pagination-controls">
+              <button
+                className="rd-page-btn"
+                disabled={pageNumber === 0}
+                onClick={() => handlePageChange(0)}
+                title="First page"
+              >«</button>
+              <button
+                className="rd-page-btn"
+                disabled={pageNumber === 0}
+                onClick={() => handlePageChange(pageNumber - 1)}
+              >‹</button>
+              {(() => {
+                const pages = [];
+                const start = Math.max(0, pageNumber - 2);
+                const end = Math.min(totalPages, start + 5);
+                for (let i = start; i < end; i++) {
+                  pages.push(
+                    <button
+                      key={i}
+                      className={`rd-page-btn ${i === pageNumber ? 'rd-page-active' : ''}`}
+                      onClick={() => handlePageChange(i)}
+                    >{i + 1}</button>
+                  );
+                }
+                return pages;
+              })()}
+              <button
+                className="rd-page-btn"
+                disabled={pageNumber >= totalPages - 1}
+                onClick={() => handlePageChange(pageNumber + 1)}
+              >›</button>
+              <button
+                className="rd-page-btn"
+                disabled={pageNumber >= totalPages - 1}
+                onClick={() => handlePageChange(totalPages - 1)}
+                title="Last page"
+              >»</button>
+            </div>
+            <div className="rd-page-size">
+              <label className="rd-page-size-label">Rows:</label>
+              <select
+                className="rd-page-size-select"
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -211,17 +211,17 @@ export async function loginUser(hospitalId, username, password) {
  * Search patients by name, phone, and date range.
  * If no params are provided, returns today's patients by default (server behavior).
  */
-export async function searchPatients({ name, phone, fromDate, toDate } = {}) {
+export async function searchPatients({ fromDate, toDate, page, size } = {}) {
   const params = new URLSearchParams();
-  if (name) params.append('name', name);
-  if (phone) params.append('phone', phone);
   if (fromDate) params.append('fromDate', fromDate);
   if (toDate) params.append('toDate', toDate);
+  if (page != null) params.append('page', page);
+  if (size != null) params.append('size', size);
 
   const query = params.toString();
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/search${query ? `?${query}` : ''}`;
+  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/by-dates${query ? `?${query}` : ''}`;
   if (import.meta.env.DEV) {
-    console.log('🔍 Searching patients:', { name, phone, fromDate, toDate });
+    console.log('🔍 Searching patients:', { fromDate, toDate, page, size });
   }
 
   const response = await authenticatedFetch(url, {
@@ -243,10 +243,12 @@ export async function searchPatients({ name, phone, fromDate, toDate } = {}) {
 /**
  * Search patients by name or phone number.
  */
-export async function searchPatientsByNamePhone({ name, phonenumber } = {}) {
+export async function searchPatientsByNamePhone({ name, phonenumber, pageNumber, pageSize } = {}) {
   const params = new URLSearchParams();
   if (name) params.append('name', name);
   if (phonenumber) params.append('phonenumber', phonenumber);
+  if (pageNumber != null) params.append('pageNumber', pageNumber);
+  if (pageSize != null) params.append('pageSize', pageSize);
 
   const query = params.toString();
   const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/search/by-name-phone${query ? `?${query}` : ''}`;
@@ -268,4 +270,27 @@ export async function searchPatientsByNamePhone({ name, phonenumber } = {}) {
     console.log('✅ Patient name/phone search results:', result);
   }
   return result;
+}
+
+/**
+ * Delete a patient by ID.
+ */
+export async function deletePatient(patientId) {
+  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/${encodeURIComponent(patientId)}`;
+  if (import.meta.env.DEV) {
+    console.log('🗑️ Deleting patient:', patientId);
+  }
+
+  const response = await authenticatedFetch(url, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.message || `Delete failed: ${response.status}`);
+  }
+
+  if (import.meta.env.DEV) {
+    console.log('✅ Patient deleted:', patientId);
+  }
 }
