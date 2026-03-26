@@ -89,11 +89,19 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   const [followUpSuccess, setFollowUpSuccess] = useState('');
   const [followUpError, setFollowUpError] = useState('');
 
-  const fetchPatients = useCallback(async ({ fromDate, toDate, page = 0, size = 10 } = {}) => {
+  // Map filter name to API params
+  const getFilterParams = (filter) => {
+    if (filter === 'completed') return { patientStatus: 'COMPLETED' };
+    if (filter === 'new') return { visitType: 'NEW_VISIT' };
+    if (filter === 'followup') return { visitType: 'FOLLOW_UP' };
+    return {};
+  };
+
+  const fetchPatients = useCallback(async ({ fromDate, toDate, patientStatus, visitType, page = 0, size = 10 } = {}) => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const data = await searchPatients({ fromDate, toDate, page, size });
+      const data = await searchPatients({ fromDate, toDate, patientStatus, visitType, page, size });
       setStats({
         totalPatients: data.totalPatients ?? 0,
         completedPatients: data.completedPatients ?? 0,
@@ -130,7 +138,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
 
   // Fetch patients on initial load (today's data)
   useEffect(() => {
-    fetchPatients({ fromDate, toDate, page: 0, size: pageSize });
+    fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: 0, size: pageSize });
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search by name/phone when user types in the search box
@@ -139,7 +147,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     const timer = setTimeout(() => {
       setPageNumber(0);
       if (!trimmed) {
-        fetchPatients({ fromDate, toDate, page: 0, size: pageSize });
+        fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: 0, size: pageSize });
         return;
       }
       const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
@@ -151,7 +159,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, fromDate, toDate, fetchPatients, fetchPatientsByNamePhone, pageSize]);
+  }, [searchQuery, fromDate, toDate, activeFilter, fetchPatients, fetchPatientsByNamePhone, pageSize]);
 
   const handlePageChange = (newPage) => {
     if (newPage < 0 || newPage >= totalPages) return;
@@ -166,7 +174,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         size: pageSize,
       });
     } else {
-      fetchPatients({ fromDate, toDate, page: newPage, size: pageSize });
+      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: newPage, size: pageSize });
     }
   };
 
@@ -183,7 +191,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         size: newSize,
       });
     } else {
-      fetchPatients({ fromDate, toDate, page: 0, size: newSize });
+      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: 0, size: newSize });
     }
   };
 
@@ -192,7 +200,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     if (!window.confirm('Are you sure you want to delete this patient?')) return;
     try {
       await deletePatient(patientId);
-      fetchPatients({ fromDate, toDate, page: pageNumber, size: pageSize });
+      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: pageNumber, size: pageSize });
     } catch (err) {
       setErrorMsg(err.message || 'Failed to delete patient.');
     }
@@ -256,7 +264,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         visitType: 'NEW_VISIT',
       });
       setNewPatientSuccess('Patient registered successfully!');
-      fetchPatients({ fromDate, toDate, page: pageNumber, size: pageSize });
+      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: pageNumber, size: pageSize });
       setTimeout(() => closeNewPatientModal(), 1200);
     } catch (err) {
       setNewPatientErrors({ submit: err.message || 'Registration failed. Please try again.' });
@@ -319,7 +327,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         visitType: 'FOLLOW_UP',
       });
       setFollowUpSuccess('Follow-up visit registered successfully!');
-      fetchPatients({ fromDate, toDate, page: pageNumber, size: pageSize });
+      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: pageNumber, size: pageSize });
       setTimeout(() => closeFollowUpModal(), 1200);
     } catch (err) {
       setFollowUpError(err.message || 'Follow-up registration failed.');
@@ -328,12 +336,11 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     }
   };
 
-  const filteredPatients = patients.filter((p) => {
-    if (activeFilter === 'completed') return p.appointmentStatus === 'COMPLETED';
-    if (activeFilter === 'new') return p.visitType === 'NEW_VISIT';
-    if (activeFilter === 'followup') return p.visitType === 'FOLLOW_UP';
-    return true;
-  });
+  const handleFilterChange = (filter) => {
+    setActiveFilter(filter);
+    setPageNumber(0);
+    fetchPatients({ fromDate, toDate, ...getFilterParams(filter), page: 0, size: pageSize });
+  };
 
   const formatDisplayDate = (dateStr) => {
     const d = new Date(dateStr);
@@ -424,7 +431,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setRangeStart(null);
     setDateRangeOpen(false);
     setPageNumber(0);
-    fetchPatients({ fromDate: pendingFrom, toDate: pendingTo, page: 0, size: pageSize });
+    fetchPatients({ fromDate: pendingFrom, toDate: pendingTo, ...getFilterParams(activeFilter), page: 0, size: pageSize });
   };
 
   return (
@@ -531,28 +538,28 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       <div className="rd-stats-row">
         <div
           className={`rd-stat-card ${activeFilter === 'all' ? 'rd-stat-active' : ''}`}
-          onClick={() => setActiveFilter('all')}
+          onClick={() => handleFilterChange('all')}
         >
           <div className="rd-stat-label">📅 Appointments</div>
           <div className="rd-stat-value">{stats.totalPatients}</div>
         </div>
         <div
           className={`rd-stat-card ${activeFilter === 'completed' ? 'rd-stat-active' : ''}`}
-          onClick={() => setActiveFilter('completed')}
+          onClick={() => handleFilterChange('completed')}
         >
           <div className="rd-stat-label">✅ Completed</div>
           <div className="rd-stat-value">{stats.completedPatients}</div>
         </div>
         <div
           className={`rd-stat-card ${activeFilter === 'new' ? 'rd-stat-active' : ''}`}
-          onClick={() => setActiveFilter('new')}
+          onClick={() => handleFilterChange('new')}
         >
           <div className="rd-stat-label">👥 New Patients</div>
           <div className="rd-stat-value">{stats.newPatients}</div>
         </div>
         <div
           className={`rd-stat-card ${activeFilter === 'followup' ? 'rd-stat-active' : ''}`}
-          onClick={() => setActiveFilter('followup')}
+          onClick={() => handleFilterChange('followup')}
         >
           <div className="rd-stat-label">🔄 Follow-up Patients</div>
           <div className="rd-stat-value">{stats.followUpPatients}</div>
@@ -565,7 +572,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
           <h2 className="rd-patient-list-title">
             All Patient Appointments · {fromDate === toDate ? formatDisplayDate(fromDate) : `${formatDisplayDate(fromDate)} to ${formatDisplayDate(toDate)}`}
           </h2>
-          <span className="rd-patient-count">{filteredPatients.length} patients</span>
+          <span className="rd-patient-count">{patients.length} patients</span>
         </div>
 
         <div className="rd-patient-table-header">
@@ -583,7 +590,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
           {!loading && errorMsg && (
             <div className="rd-no-results rd-error-msg">{errorMsg}</div>
           )}
-          {!loading && !errorMsg && filteredPatients.map((patient, index) => (
+          {!loading && !errorMsg && patients.map((patient, index) => (
             <div key={`${patient.patientName}-${patient.appointmentTime}-${index}`} className="rd-patient-card">
               <div className="rd-col-name rd-patient-name-cell">
                 <div className="rd-patient-avatar">
@@ -624,7 +631,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
             </div>
           ))}
 
-          {!loading && !errorMsg && filteredPatients.length === 0 && (
+          {!loading && !errorMsg && patients.length === 0 && (
             <div className="rd-no-results">No patients found matching your search.</div>
           )}
         </div>

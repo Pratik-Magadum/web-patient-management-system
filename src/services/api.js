@@ -211,17 +211,19 @@ export async function loginUser(hospitalId, username, password) {
  * Search patients by name, phone, and date range.
  * If no params are provided, returns today's patients by default (server behavior).
  */
-export async function searchPatients({ fromDate, toDate, page, size } = {}) {
+export async function searchPatients({ fromDate, toDate, patientStatus, visitType, page, size } = {}) {
   const params = new URLSearchParams();
   if (fromDate) params.append('fromDate', fromDate);
   if (toDate) params.append('toDate', toDate);
+  if (patientStatus) params.append('patientStatus', patientStatus);
+  if (visitType) params.append('visitType', visitType);
   if (page != null) params.append('page', page);
   if (size != null) params.append('size', size);
 
   const query = params.toString();
   const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/by-dates${query ? `?${query}` : ''}`;
   if (import.meta.env.DEV) {
-    console.log('🔍 Searching patients:', { fromDate, toDate, page, size });
+    console.log('🔍 Searching patients:', { fromDate, toDate, patientStatus, visitType, page, size });
   }
 
   const response = await authenticatedFetch(url, {
