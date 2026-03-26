@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { deletePatient, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone } from '../services/api';
 import '../styles/receptionist.css';
 
@@ -23,9 +23,25 @@ const VISIT_TYPE_DISPLAY = {
   'FOLLOW_UP': 'Follow-up',
 };
 
-function getStatusClass(status) {
-  return STATUS_CLASS_MAP[status] || '';
-}
+const FILTER_API_PARAMS = {
+  all: {},
+  completed: { patientStatus: 'COMPLETED' },
+  new: { visitType: 'NEW_VISIT' },
+  followup: { visitType: 'FOLLOW_UP' },
+};
+
+const STAT_CARDS = [
+  { key: 'all', icon: '📅', label: 'Appointments', stat: 'totalPatients' },
+  { key: 'completed', icon: '✅', label: 'Completed', stat: 'completedPatients' },
+  { key: 'new', icon: '👥', label: 'New Patients', stat: 'newPatients' },
+  { key: 'followup', icon: '🔄', label: 'Follow-up Patients', stat: 'followUpPatients' },
+];
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+const INITIAL_PATIENT_FORM = { patientName: '', mobileNumber: '', age: '', gender: '', address: '' };
+const INITIAL_STATS = { totalPatients: 0, completedPatients: 0, newPatients: 0, followUpPatients: 0 };
 
 function getToday() {
   return new Date().toISOString().split('T')[0];
@@ -35,17 +51,43 @@ function formatTime12h(timeStr) {
   if (!timeStr) return '';
   const [h, m] = timeStr.split(':');
   const hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const hour12 = hour % 12 || 12;
-  return `${hour12}:${m} ${ampm}`;
+  return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+
+function formatDisplayDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+}
+
+function parseSearchQuery(query) {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+  const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
+  return {
+    name: isPhone ? undefined : trimmed,
+    phonenumber: isPhone ? trimmed : undefined,
+  };
+}
+
+function getCalendarDayClass(dateStr, today, pendingFrom, pendingTo, rangeStart) {
+  if (!dateStr) return 'rd-cal-day rd-cal-empty';
+  const classes = ['rd-cal-day'];
+  if (dateStr > today) classes.push('rd-cal-disabled');
+  if (dateStr === today) classes.push('rd-cal-today');
+  const isEdge = dateStr === pendingFrom || dateStr === pendingTo;
+  const inRange = rangeStart
+    ? dateStr === rangeStart
+    : dateStr >= pendingFrom && dateStr <= pendingTo;
+  if (isEdge) classes.push('rd-cal-edge');
+  else if (inRange) classes.push('rd-cal-in-range');
+  return classes.join(' ');
 }
 
 export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [fromDate, setFromDate] = useState(getToday());
-  const [toDate, setToDate] = useState(getToday());
-  const [pendingFrom, setPendingFrom] = useState(getToday());
-  const [pendingTo, setPendingTo] = useState(getToday());
+  const [fromDate, setFromDate] = useState(getToday);
+  const [toDate, setToDate] = useState(getToday);
+  const [pendingFrom, setPendingFrom] = useState(getToday);
+  const [pendingTo, setPendingTo] = useState(getToday);
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const t = new Date(); return { year: t.getFullYear(), month: t.getMonth() };
@@ -59,22 +101,11 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
-  const [stats, setStats] = useState({
-    totalPatients: 0,
-    completedPatients: 0,
-    newPatients: 0,
-    followUpPatients: 0,
-  });
+  const [stats, setStats] = useState(INITIAL_STATS);
 
   // ─── New Patient Modal State ─────────────────────
   const [showNewPatientModal, setShowNewPatientModal] = useState(false);
-  const [newPatientForm, setNewPatientForm] = useState({
-    patientName: '',
-    mobileNumber: '',
-    age: '',
-    gender: '',
-    address: '',
-  });
+  const [newPatientForm, setNewPatientForm] = useState(INITIAL_PATIENT_FORM);
   const [newPatientErrors, setNewPatientErrors] = useState({});
   const [newPatientSubmitting, setNewPatientSubmitting] = useState(false);
   const [newPatientSuccess, setNewPatientSuccess] = useState('');
@@ -89,13 +120,9 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   const [followUpSuccess, setFollowUpSuccess] = useState('');
   const [followUpError, setFollowUpError] = useState('');
 
-  // Map filter name to API params
-  const getFilterParams = (filter) => {
-    if (filter === 'completed') return { patientStatus: 'COMPLETED' };
-    if (filter === 'new') return { visitType: 'NEW_VISIT' };
-    if (filter === 'followup') return { visitType: 'FOLLOW_UP' };
-    return {};
-  };
+  const today = useMemo(getToday, []);
+
+  // ─── Core Fetch Helpers ───────────────────────────
 
   const fetchPatients = useCallback(async ({ fromDate, toDate, patientStatus, visitType, page = 0, size = 10 } = {}) => {
     setLoading(true);
@@ -136,79 +163,71 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     }
   }, []);
 
-  // Fetch patients on initial load (today's data)
+  // Unified refresh: uses current dates + active filter
+  const refreshPatientList = useCallback((page, size, filter) => {
+    return fetchPatients({
+      fromDate, toDate,
+      ...(FILTER_API_PARAMS[filter ?? activeFilter] || {}),
+      page, size,
+    });
+  }, [fromDate, toDate, activeFilter, fetchPatients]);
+
+  // Fetch by search query or refresh full list
+  const fetchBySearchOrRefresh = useCallback((query, page, size) => {
+    const parsed = parseSearchQuery(query);
+    if (parsed) {
+      return fetchPatientsByNamePhone({ ...parsed, page, size });
+    }
+    return refreshPatientList(page, size);
+  }, [fetchPatientsByNamePhone, refreshPatientList]);
+
+  // ─── Effects ──────────────────────────────────────
+
   useEffect(() => {
-    fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: 0, size: pageSize });
+    refreshPatientList(0, pageSize);
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounced search by name/phone when user types in the search box
   useEffect(() => {
-    const trimmed = searchQuery.trim();
     const timer = setTimeout(() => {
       setPageNumber(0);
-      if (!trimmed) {
-        fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: 0, size: pageSize });
-        return;
-      }
-      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
-      fetchPatientsByNamePhone({
-        name: isPhone ? undefined : trimmed,
-        phonenumber: isPhone ? trimmed : undefined,
-        page: 0,
-        size: pageSize,
-      });
+      fetchBySearchOrRefresh(searchQuery, 0, pageSize);
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, fromDate, toDate, activeFilter, fetchPatients, fetchPatientsByNamePhone, pageSize]);
+  }, [searchQuery, fromDate, toDate, activeFilter, fetchBySearchOrRefresh, pageSize]);
+
+  // ─── Event Handlers ───────────────────────────────
 
   const handlePageChange = (newPage) => {
     if (newPage < 0 || newPage >= totalPages) return;
     setPageNumber(newPage);
-    const trimmed = searchQuery.trim();
-    if (trimmed) {
-      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
-      fetchPatientsByNamePhone({
-        name: isPhone ? undefined : trimmed,
-        phonenumber: isPhone ? trimmed : undefined,
-        page: newPage,
-        size: pageSize,
-      });
-    } else {
-      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: newPage, size: pageSize });
-    }
+    fetchBySearchOrRefresh(searchQuery, newPage, pageSize);
   };
 
   const handlePageSizeChange = (newSize) => {
     setPageSize(newSize);
     setPageNumber(0);
-    const trimmed = searchQuery.trim();
-    if (trimmed) {
-      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
-      fetchPatientsByNamePhone({
-        name: isPhone ? undefined : trimmed,
-        phonenumber: isPhone ? trimmed : undefined,
-        page: 0,
-        size: newSize,
-      });
-    } else {
-      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: 0, size: newSize });
-    }
+    fetchBySearchOrRefresh(searchQuery, 0, newSize);
   };
 
   const handleDeletePatient = async (patientId) => {
-    if (!patientId) return;
-    if (!window.confirm('Are you sure you want to delete this patient?')) return;
+    if (!patientId || !window.confirm('Are you sure you want to delete this patient?')) return;
     try {
       await deletePatient(patientId);
-      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: pageNumber, size: pageSize });
+      refreshPatientList(pageNumber, pageSize);
     } catch (err) {
       setErrorMsg(err.message || 'Failed to delete patient.');
     }
   };
 
+  const handleFilterChange = (filter) => {
+    setActiveFilter(filter);
+    setPageNumber(0);
+    fetchPatients({ fromDate, toDate, ...(FILTER_API_PARAMS[filter] || {}), page: 0, size: pageSize });
+  };
+
   // ─── New Patient Modal Handlers ─────────────────────
   const openNewPatientModal = () => {
-    setNewPatientForm({ patientName: '', mobileNumber: '', age: '', gender: '', address: '' });
+    setNewPatientForm(INITIAL_PATIENT_FORM);
     setNewPatientErrors({});
     setNewPatientSuccess('');
     setShowNewPatientModal(true);
@@ -264,7 +283,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         visitType: 'NEW_VISIT',
       });
       setNewPatientSuccess('Patient registered successfully!');
-      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: pageNumber, size: pageSize });
+      refreshPatientList(pageNumber, pageSize);
       setTimeout(() => closeNewPatientModal(), 1200);
     } catch (err) {
       setNewPatientErrors({ submit: err.message || 'Registration failed. Please try again.' });
@@ -290,20 +309,15 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   };
 
   const handleFollowUpSearch = async () => {
-    const trimmed = followUpSearch.trim();
-    if (!trimmed) return;
+    const parsed = parseSearchQuery(followUpSearch);
+    if (!parsed) return;
     setFollowUpSearching(true);
     setFollowUpError('');
     try {
-      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
-      const data = await searchPatientsByNamePhone({
-        name: isPhone ? undefined : trimmed,
-        phonenumber: isPhone ? trimmed : undefined,
-        pageNumber: 0,
-        pageSize: 20,
-      });
-      setFollowUpResults(Array.isArray(data) ? data : []);
-      if ((Array.isArray(data) ? data : []).length === 0) {
+      const data = await searchPatientsByNamePhone({ ...parsed, pageNumber: 0, pageSize: 20 });
+      const results = Array.isArray(data) ? data : [];
+      setFollowUpResults(results);
+      if (results.length === 0) {
         setFollowUpError('No patients found. Try a different search.');
       }
     } catch (err) {
@@ -327,7 +341,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         visitType: 'FOLLOW_UP',
       });
       setFollowUpSuccess('Follow-up visit registered successfully!');
-      fetchPatients({ fromDate, toDate, ...getFilterParams(activeFilter), page: pageNumber, size: pageSize });
+      refreshPatientList(pageNumber, pageSize);
       setTimeout(() => closeFollowUpModal(), 1200);
     } catch (err) {
       setFollowUpError(err.message || 'Follow-up registration failed.');
@@ -336,27 +350,12 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     }
   };
 
-  const handleFilterChange = (filter) => {
-    setActiveFilter(filter);
-    setPageNumber(0);
-    fetchPatients({ fromDate, toDate, ...getFilterParams(filter), page: 0, size: pageSize });
-  };
-
-  const formatDisplayDate = (dateStr) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-  };
+  // ─── Calendar & Date Range ────────────────────────
 
   const handleLogout = async () => {
     await logoutUser();
-    if (onLogout) {
-      onLogout();
-    } else {
-      window.location.href = '/';
-    }
+    onLogout ? onLogout() : (window.location.href = '/');
   };
-
-  const today = getToday();
 
   const buildCalendarDays = () => {
     const { year, month } = calendarMonth;
@@ -365,8 +364,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     const days = [];
     for (let i = 0; i < firstDay; i++) days.push(null);
     for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      days.push(dateStr);
+      days.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
     }
     return days;
   };
@@ -378,28 +376,12 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       setPendingFrom(dateStr);
       setPendingTo(dateStr);
     } else {
-      const start = dateStr < rangeStart ? dateStr : rangeStart;
-      const end = dateStr < rangeStart ? rangeStart : dateStr;
+      const [start, end] = dateStr < rangeStart ? [dateStr, rangeStart] : [rangeStart, dateStr];
       setPendingFrom(start);
       setPendingTo(end);
       setRangeStart(null);
     }
   };
-
-  const isInRange = (dateStr) => {
-    if (!dateStr) return false;
-    if (rangeStart) {
-      return dateStr === rangeStart;
-    }
-    return dateStr >= pendingFrom && dateStr <= pendingTo;
-  };
-
-  const isRangeEdge = (dateStr) => {
-    if (!dateStr) return false;
-    return dateStr === pendingFrom || dateStr === pendingTo;
-  };
-
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   const prevMonth = () => {
     setCalendarMonth((prev) => {
@@ -412,8 +394,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     const next = calendarMonth.month + 1 > 11
       ? { year: calendarMonth.year + 1, month: 0 }
       : { year: calendarMonth.year, month: calendarMonth.month + 1 };
-    const firstOfNext = `${next.year}-${String(next.month + 1).padStart(2, '0')}-01`;
-    if (firstOfNext > today) return;
+    if (`${next.year}-${String(next.month + 1).padStart(2, '0')}-01` > today) return;
     setCalendarMonth(next);
   };
 
@@ -431,7 +412,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setRangeStart(null);
     setDateRangeOpen(false);
     setPageNumber(0);
-    fetchPatients({ fromDate: pendingFrom, toDate: pendingTo, ...getFilterParams(activeFilter), page: 0, size: pageSize });
+    fetchPatients({ fromDate: pendingFrom, toDate: pendingTo, ...(FILTER_API_PARAMS[activeFilter] || {}), page: 0, size: pageSize });
   };
 
   return (
@@ -486,11 +467,11 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
               <div className="rd-date-range-dropdown">
                 <div className="rd-cal-header">
                   <button className="rd-cal-nav" onClick={prevMonth}>‹</button>
-                  <span className="rd-cal-title">{monthNames[calendarMonth.month]} {calendarMonth.year}</span>
+                  <span className="rd-cal-title">{MONTH_NAMES[calendarMonth.month]} {calendarMonth.year}</span>
                   <button className="rd-cal-nav" onClick={nextMonth}>›</button>
                 </div>
                 <div className="rd-cal-weekdays">
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                  {WEEKDAYS.map((d) => (
                     <span key={d} className="rd-cal-wd">{d}</span>
                   ))}
                 </div>
@@ -498,7 +479,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                   {buildCalendarDays().map((dateStr, i) => (
                     <button
                       key={i}
-                      className={`rd-cal-day${!dateStr ? ' rd-cal-empty' : ''}${dateStr && dateStr > today ? ' rd-cal-disabled' : ''}${dateStr && isRangeEdge(dateStr) ? ' rd-cal-edge' : ''}${dateStr && isInRange(dateStr) && !isRangeEdge(dateStr) ? ' rd-cal-in-range' : ''}${dateStr === today ? ' rd-cal-today' : ''}`}
+                      className={getCalendarDayClass(dateStr, today, pendingFrom, pendingTo, rangeStart)}
                       disabled={!dateStr || dateStr > today}
                       onClick={() => dateStr && handleCalendarDayClick(dateStr)}
                     >
@@ -536,34 +517,16 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
 
       {/* Stats Cards */}
       <div className="rd-stats-row">
-        <div
-          className={`rd-stat-card ${activeFilter === 'all' ? 'rd-stat-active' : ''}`}
-          onClick={() => handleFilterChange('all')}
-        >
-          <div className="rd-stat-label">📅 Appointments</div>
-          <div className="rd-stat-value">{stats.totalPatients}</div>
-        </div>
-        <div
-          className={`rd-stat-card ${activeFilter === 'completed' ? 'rd-stat-active' : ''}`}
-          onClick={() => handleFilterChange('completed')}
-        >
-          <div className="rd-stat-label">✅ Completed</div>
-          <div className="rd-stat-value">{stats.completedPatients}</div>
-        </div>
-        <div
-          className={`rd-stat-card ${activeFilter === 'new' ? 'rd-stat-active' : ''}`}
-          onClick={() => handleFilterChange('new')}
-        >
-          <div className="rd-stat-label">👥 New Patients</div>
-          <div className="rd-stat-value">{stats.newPatients}</div>
-        </div>
-        <div
-          className={`rd-stat-card ${activeFilter === 'followup' ? 'rd-stat-active' : ''}`}
-          onClick={() => handleFilterChange('followup')}
-        >
-          <div className="rd-stat-label">🔄 Follow-up Patients</div>
-          <div className="rd-stat-value">{stats.followUpPatients}</div>
-        </div>
+        {STAT_CARDS.map(({ key, icon, label, stat }) => (
+          <div
+            key={key}
+            className={`rd-stat-card ${activeFilter === key ? 'rd-stat-active' : ''}`}
+            onClick={() => handleFilterChange(key)}
+          >
+            <div className="rd-stat-label">{icon} {label}</div>
+            <div className="rd-stat-value">{stats[stat]}</div>
+          </div>
+        ))}
       </div>
 
       {/* Patient List */}
@@ -609,7 +572,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
               </div>
               <div className="rd-col-mobile rd-patient-mobile">{patient.mobileNumber}</div>
               <div className="rd-col-status">
-                <span className={`rd-patient-status ${getStatusClass(patient.appointmentStatus)}`}>
+                <span className={`rd-patient-status ${STATUS_CLASS_MAP[patient.appointmentStatus] || ''}`}>
                   {STATUS_DISPLAY[patient.appointmentStatus] || patient.appointmentStatus}
                 </span>
               </div>
