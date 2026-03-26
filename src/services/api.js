@@ -294,3 +294,55 @@ export async function deletePatient(patientId) {
     console.log('✅ Patient deleted:', patientId);
   }
 }
+
+/**
+ * Register a new patient.
+ */
+export async function registerNewPatient(patientData) {
+  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/register`;
+  if (import.meta.env.DEV) {
+    console.log('➕ Registering new patient:', patientData);
+  }
+
+  const response = await authenticatedFetch(url, {
+    method: 'POST',
+    body: JSON.stringify(patientData),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.message || `Registration failed: ${response.status}`);
+  }
+
+  if (import.meta.env.DEV) {
+    console.log('✅ Patient registered:', result);
+  }
+  return result;
+}
+
+/**
+ * Register a follow-up visit for an existing patient.
+ */
+export async function registerFollowUpPatient(followUpData) {
+  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/follow-up`;
+  if (import.meta.env.DEV) {
+    console.log('🔄 Registering follow-up patient:', followUpData);
+  }
+
+  const response = await authenticatedFetch(url, {
+    method: 'POST',
+    body: JSON.stringify(followUpData),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.message || `Follow-up registration failed: ${response.status}`);
+  }
+
+  if (import.meta.env.DEV) {
+    console.log('✅ Follow-up registered:', result);
+  }
+  return result;
+}

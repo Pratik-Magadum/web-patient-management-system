@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { deletePatient, logoutUser, searchPatients, searchPatientsByNamePhone } from '../services/api';
+import { deletePatient, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone } from '../services/api';
 import '../styles/receptionist.css';
 
 const STATUS_CLASS_MAP = {
@@ -65,6 +65,29 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     newPatients: 0,
     followUpPatients: 0,
   });
+
+  // ─── New Patient Modal State ─────────────────────
+  const [showNewPatientModal, setShowNewPatientModal] = useState(false);
+  const [newPatientForm, setNewPatientForm] = useState({
+    patientName: '',
+    mobileNumber: '',
+    age: '',
+    gender: '',
+    address: '',
+  });
+  const [newPatientErrors, setNewPatientErrors] = useState({});
+  const [newPatientSubmitting, setNewPatientSubmitting] = useState(false);
+  const [newPatientSuccess, setNewPatientSuccess] = useState('');
+
+  // ─── Follow-up Patient Modal State ────────────────
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [followUpSearch, setFollowUpSearch] = useState('');
+  const [followUpResults, setFollowUpResults] = useState([]);
+  const [followUpSearching, setFollowUpSearching] = useState(false);
+  const [selectedFollowUpPatient, setSelectedFollowUpPatient] = useState(null);
+  const [followUpSubmitting, setFollowUpSubmitting] = useState(false);
+  const [followUpSuccess, setFollowUpSuccess] = useState('');
+  const [followUpError, setFollowUpError] = useState('');
 
   const fetchPatients = useCallback(async ({ fromDate, toDate, page = 0, size = 10 } = {}) => {
     setLoading(true);
@@ -172,6 +195,136 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       fetchPatients({ fromDate, toDate, page: pageNumber, size: pageSize });
     } catch (err) {
       setErrorMsg(err.message || 'Failed to delete patient.');
+    }
+  };
+
+  // ─── New Patient Modal Handlers ─────────────────────
+  const openNewPatientModal = () => {
+    setNewPatientForm({ patientName: '', mobileNumber: '', age: '', gender: '', address: '' });
+    setNewPatientErrors({});
+    setNewPatientSuccess('');
+    setShowNewPatientModal(true);
+  };
+
+  const closeNewPatientModal = () => {
+    setShowNewPatientModal(false);
+    setNewPatientErrors({});
+    setNewPatientSuccess('');
+  };
+
+  const handleNewPatientChange = (e) => {
+    const { name, value } = e.target;
+    setNewPatientForm((prev) => ({ ...prev, [name]: value }));
+    if (newPatientErrors[name]) {
+      setNewPatientErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const validateNewPatientForm = () => {
+    const errors = {};
+    if (!newPatientForm.patientName.trim()) errors.patientName = 'Patient name is required';
+    if (!newPatientForm.mobileNumber.trim()) {
+      errors.mobileNumber = 'Mobile number is required';
+    } else if (!/^\d{10}$/.test(newPatientForm.mobileNumber.trim())) {
+      errors.mobileNumber = 'Enter a valid 10-digit mobile number';
+    }
+    if (!newPatientForm.age) {
+      errors.age = 'Age is required';
+    } else if (isNaN(newPatientForm.age) || Number(newPatientForm.age) < 0 || Number(newPatientForm.age) > 150) {
+      errors.age = 'Enter a valid age (0-150)';
+    }
+    if (!newPatientForm.gender) errors.gender = 'Gender is required';
+    return errors;
+  };
+
+  const handleNewPatientSubmit = async (e) => {
+    e.preventDefault();
+    const errors = validateNewPatientForm();
+    if (Object.keys(errors).length > 0) {
+      setNewPatientErrors(errors);
+      return;
+    }
+    setNewPatientSubmitting(true);
+    setNewPatientSuccess('');
+    try {
+      await registerNewPatient({
+        patientName: newPatientForm.patientName.trim(),
+        mobileNumber: newPatientForm.mobileNumber.trim(),
+        age: Number(newPatientForm.age),
+        gender: newPatientForm.gender,
+        address: newPatientForm.address.trim() || undefined,
+        visitType: 'NEW_VISIT',
+      });
+      setNewPatientSuccess('Patient registered successfully!');
+      fetchPatients({ fromDate, toDate, page: pageNumber, size: pageSize });
+      setTimeout(() => closeNewPatientModal(), 1200);
+    } catch (err) {
+      setNewPatientErrors({ submit: err.message || 'Registration failed. Please try again.' });
+    } finally {
+      setNewPatientSubmitting(false);
+    }
+  };
+
+  // ─── Follow-up Patient Modal Handlers ────────────────
+  const openFollowUpModal = () => {
+    setFollowUpSearch('');
+    setFollowUpResults([]);
+    setSelectedFollowUpPatient(null);
+    setFollowUpSuccess('');
+    setFollowUpError('');
+    setShowFollowUpModal(true);
+  };
+
+  const closeFollowUpModal = () => {
+    setShowFollowUpModal(false);
+    setFollowUpSuccess('');
+    setFollowUpError('');
+  };
+
+  const handleFollowUpSearch = async () => {
+    const trimmed = followUpSearch.trim();
+    if (!trimmed) return;
+    setFollowUpSearching(true);
+    setFollowUpError('');
+    try {
+      const isPhone = /^\+?\d[\d\s-]*$/.test(trimmed);
+      const data = await searchPatientsByNamePhone({
+        name: isPhone ? undefined : trimmed,
+        phonenumber: isPhone ? trimmed : undefined,
+        pageNumber: 0,
+        pageSize: 20,
+      });
+      setFollowUpResults(Array.isArray(data) ? data : []);
+      if ((Array.isArray(data) ? data : []).length === 0) {
+        setFollowUpError('No patients found. Try a different search.');
+      }
+    } catch (err) {
+      setFollowUpError(err.message || 'Search failed.');
+      setFollowUpResults([]);
+    } finally {
+      setFollowUpSearching(false);
+    }
+  };
+
+  const handleFollowUpSubmit = async () => {
+    if (!selectedFollowUpPatient) return;
+    setFollowUpSubmitting(true);
+    setFollowUpError('');
+    setFollowUpSuccess('');
+    try {
+      await registerFollowUpPatient({
+        patientId: selectedFollowUpPatient.patientId,
+        patientName: selectedFollowUpPatient.patientName,
+        mobileNumber: selectedFollowUpPatient.mobileNumber,
+        visitType: 'FOLLOW_UP',
+      });
+      setFollowUpSuccess('Follow-up visit registered successfully!');
+      fetchPatients({ fromDate, toDate, page: pageNumber, size: pageSize });
+      setTimeout(() => closeFollowUpModal(), 1200);
+    } catch (err) {
+      setFollowUpError(err.message || 'Follow-up registration failed.');
+    } finally {
+      setFollowUpSubmitting(false);
     }
   };
 
@@ -369,7 +522,8 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
               </div>
             )}
           </div>
-          <button className="rd-new-patient-btn">+ New Patient</button>
+          <button className="rd-new-patient-btn" onClick={openNewPatientModal}>+ New Patient</button>
+          <button className="rd-followup-btn" onClick={openFollowUpModal}>🔄 Follow-up</button>
         </div>
       </div>
 
@@ -536,6 +690,177 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
           </div>
         )}
       </div>
+
+      {/* ─── New Patient Modal ─────────────────────── */}
+      {showNewPatientModal && (
+        <div className="rd-modal-overlay" onClick={closeNewPatientModal}>
+          <div className="rd-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="rd-modal-header">
+              <h2 className="rd-modal-title">Register New Patient</h2>
+              <button className="rd-modal-close" onClick={closeNewPatientModal}>✕</button>
+            </div>
+            <form onSubmit={handleNewPatientSubmit} className="rd-modal-body">
+              {newPatientErrors.submit && (
+                <div className="rd-modal-error">{newPatientErrors.submit}</div>
+              )}
+              {newPatientSuccess && (
+                <div className="rd-modal-success">{newPatientSuccess}</div>
+              )}
+
+              <div className="rd-form-group">
+                <label className="rd-form-label">Patient Name <span className="rd-required">*</span></label>
+                <input
+                  type="text"
+                  name="patientName"
+                  className={`rd-form-input ${newPatientErrors.patientName ? 'rd-input-error' : ''}`}
+                  placeholder="Enter patient full name"
+                  value={newPatientForm.patientName}
+                  onChange={handleNewPatientChange}
+                  autoFocus
+                />
+                {newPatientErrors.patientName && <span className="rd-field-error">{newPatientErrors.patientName}</span>}
+              </div>
+
+              <div className="rd-form-group">
+                <label className="rd-form-label">Mobile Number <span className="rd-required">*</span></label>
+                <input
+                  type="tel"
+                  name="mobileNumber"
+                  className={`rd-form-input ${newPatientErrors.mobileNumber ? 'rd-input-error' : ''}`}
+                  placeholder="Enter 10-digit mobile number"
+                  value={newPatientForm.mobileNumber}
+                  onChange={handleNewPatientChange}
+                  maxLength={10}
+                />
+                {newPatientErrors.mobileNumber && <span className="rd-field-error">{newPatientErrors.mobileNumber}</span>}
+              </div>
+
+              <div className="rd-form-row">
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Age <span className="rd-required">*</span></label>
+                  <input
+                    type="number"
+                    name="age"
+                    className={`rd-form-input ${newPatientErrors.age ? 'rd-input-error' : ''}`}
+                    placeholder="Age"
+                    value={newPatientForm.age}
+                    onChange={handleNewPatientChange}
+                    min="0"
+                    max="150"
+                  />
+                  {newPatientErrors.age && <span className="rd-field-error">{newPatientErrors.age}</span>}
+                </div>
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Gender <span className="rd-required">*</span></label>
+                  <select
+                    name="gender"
+                    className={`rd-form-input ${newPatientErrors.gender ? 'rd-input-error' : ''}`}
+                    value={newPatientForm.gender}
+                    onChange={handleNewPatientChange}
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                  {newPatientErrors.gender && <span className="rd-field-error">{newPatientErrors.gender}</span>}
+                </div>
+              </div>
+
+              <div className="rd-form-group">
+                <label className="rd-form-label">Address</label>
+                <textarea
+                  name="address"
+                  className="rd-form-input rd-form-textarea"
+                  placeholder="Enter address (optional)"
+                  value={newPatientForm.address}
+                  onChange={handleNewPatientChange}
+                  rows={2}
+                />
+              </div>
+
+              <div className="rd-modal-footer">
+                <button type="button" className="rd-modal-cancel-btn" onClick={closeNewPatientModal}>Cancel</button>
+                <button type="submit" className="rd-modal-submit-btn" disabled={newPatientSubmitting}>
+                  {newPatientSubmitting ? 'Registering...' : 'Register Patient'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Follow-up Patient Modal ─────────────────── */}
+      {showFollowUpModal && (
+        <div className="rd-modal-overlay" onClick={closeFollowUpModal}>
+          <div className="rd-modal rd-modal-followup" onClick={(e) => e.stopPropagation()}>
+            <div className="rd-modal-header">
+              <h2 className="rd-modal-title">Register Follow-up Visit</h2>
+              <button className="rd-modal-close" onClick={closeFollowUpModal}>✕</button>
+            </div>
+            <div className="rd-modal-body">
+              {followUpError && <div className="rd-modal-error">{followUpError}</div>}
+              {followUpSuccess && <div className="rd-modal-success">{followUpSuccess}</div>}
+
+              <div className="rd-form-group">
+                <label className="rd-form-label">Search Existing Patient</label>
+                <div className="rd-followup-search-row">
+                  <input
+                    type="text"
+                    className="rd-form-input"
+                    placeholder="Search by name or mobile number..."
+                    value={followUpSearch}
+                    onChange={(e) => setFollowUpSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleFollowUpSearch(); } }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="rd-followup-search-btn"
+                    onClick={handleFollowUpSearch}
+                    disabled={followUpSearching || !followUpSearch.trim()}
+                  >
+                    {followUpSearching ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+              </div>
+
+              {followUpResults.length > 0 && (
+                <div className="rd-followup-results">
+                  <label className="rd-form-label">Select a patient:</label>
+                  <div className="rd-followup-list">
+                    {followUpResults.map((p, i) => (
+                      <div
+                        key={`${p.patientId || p.mobileNumber}-${i}`}
+                        className={`rd-followup-item ${selectedFollowUpPatient?.patientId === p.patientId ? 'rd-followup-selected' : ''}`}
+                        onClick={() => setSelectedFollowUpPatient(p)}
+                      >
+                        <div className="rd-followup-item-name">{p.patientName}</div>
+                        <div className="rd-followup-item-details">
+                          <span>📱 {p.mobileNumber}</span>
+                          {p.appointmentDate && <span>📅 Last: {p.appointmentDate}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="rd-modal-footer">
+                <button type="button" className="rd-modal-cancel-btn" onClick={closeFollowUpModal}>Cancel</button>
+                <button
+                  type="button"
+                  className="rd-modal-submit-btn"
+                  disabled={!selectedFollowUpPatient || followUpSubmitting}
+                  onClick={handleFollowUpSubmit}
+                >
+                  {followUpSubmitting ? 'Registering...' : 'Register Follow-up'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
