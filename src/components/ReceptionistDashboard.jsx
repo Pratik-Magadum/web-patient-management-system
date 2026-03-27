@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { deletePatient, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone } from '../services/api';
+import { deleteAppointment, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone } from '../services/api';
 import '../styles/receptionist.css';
+
+// ─── Constants ──────────────────────────────────────
 
 const STATUS_CLASS_MAP = {
   'REGISTERED': 'status-registered',
@@ -39,12 +41,53 @@ const STAT_CARDS = [
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+const GENDER_OPTIONS = [
+  { value: '', label: 'Select Gender' },
+  { value: 'MALE', label: 'Male' },
+  { value: 'FEMALE', label: 'Female' },
+  { value: 'OTHER', label: 'Other' },
+];
 
 const INITIAL_PATIENT_FORM = { patientName: '', mobileNumber: '', age: '', gender: '', address: '' };
 const INITIAL_STATS = { totalPatients: 0, completedPatients: 0, newPatients: 0, followUpPatients: 0 };
 
+// ─── SVG Icons ──────────────────────────────────────
+
+const UserIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="8" r="4" stroke="#9ca3af" strokeWidth="2" />
+    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const EditIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+  </svg>
+);
+
+const DeleteIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+  </svg>
+);
+
+// ─── Utility Functions ──────────────────────────────
+
+// ─── Utility Functions ──────────────────────────────
+
 function getToday() {
   return new Date().toISOString().split('T')[0];
+}
+
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split('T')[0];
 }
 
 function formatTime12h(timeStr) {
@@ -119,6 +162,9 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   const [followUpSubmitting, setFollowUpSubmitting] = useState(false);
   const [followUpSuccess, setFollowUpSuccess] = useState('');
   const [followUpError, setFollowUpError] = useState('');
+  const [followUpDate, setFollowUpDate] = useState(getToday);
+  const [followUpTime, setFollowUpTime] = useState('');
+  const [followUpNotes, setFollowUpNotes] = useState('');
 
   const today = useMemo(getToday, []);
 
@@ -209,13 +255,13 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     fetchBySearchOrRefresh(searchQuery, 0, newSize);
   };
 
-  const handleDeletePatient = async (patientId) => {
-    if (!patientId || !window.confirm('Are you sure you want to delete this patient?')) return;
+  const handleDeletePatient = async (appointmentId) => {
+    if (!appointmentId || !window.confirm('Are you sure you want to delete this appointment?')) return;
     try {
-      await deletePatient(patientId);
+      await deleteAppointment(appointmentId);
       refreshPatientList(pageNumber, pageSize);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to delete patient.');
+      setErrorMsg(err.message || 'Failed to delete appointment.');
     }
   };
 
@@ -223,6 +269,11 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setActiveFilter(filter);
     setPageNumber(0);
     fetchPatients({ fromDate, toDate, ...(FILTER_API_PARAMS[filter] || {}), page: 0, size: pageSize });
+  };
+
+  const handleEditPatient = (patient) => {
+    // TODO: implement edit patient functionality
+    console.log('Edit patient:', patient);
   };
 
   // ─── New Patient Modal Handlers ─────────────────────
@@ -297,6 +348,9 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setFollowUpSearch('');
     setFollowUpResults([]);
     setSelectedFollowUpPatient(null);
+    setFollowUpDate(getToday());
+    setFollowUpTime('');
+    setFollowUpNotes('');
     setFollowUpSuccess('');
     setFollowUpError('');
     setShowFollowUpModal(true);
@@ -306,15 +360,23 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setShowFollowUpModal(false);
     setFollowUpSuccess('');
     setFollowUpError('');
+    setFollowUpNotes('');
   };
 
   const handleFollowUpSearch = async () => {
-    const parsed = parseSearchQuery(followUpSearch);
-    if (!parsed) return;
+    const query = followUpSearch.trim();
+    if (!query) return;
     setFollowUpSearching(true);
     setFollowUpError('');
+    setSelectedFollowUpPatient(null);
     try {
-      const data = await searchPatientsByNamePhone({ ...parsed, pageNumber: 0, pageSize: 20 });
+      const parsed = parseSearchQuery(query);
+      const data = await searchPatientsByNamePhone({
+        ...parsed,
+        patientStatus: 'COMPLETED',
+        pageNumber: 0,
+        pageSize: 20,
+      });
       const results = Array.isArray(data) ? data : [];
       setFollowUpResults(results);
       if (results.length === 0) {
@@ -330,15 +392,27 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
 
   const handleFollowUpSubmit = async () => {
     if (!selectedFollowUpPatient) return;
+    if (!selectedFollowUpPatient.appointmentId) {
+      setFollowUpError('Selected patient does not have a valid appointment. Please select another patient.');
+      return;
+    }
+    if (!followUpDate) {
+      setFollowUpError('Appointment date is required.');
+      return;
+    }
+    if (!followUpTime) {
+      setFollowUpError('Appointment time is required.');
+      return;
+    }
     setFollowUpSubmitting(true);
     setFollowUpError('');
     setFollowUpSuccess('');
     try {
       await registerFollowUpPatient({
-        patientId: selectedFollowUpPatient.patientId,
-        patientName: selectedFollowUpPatient.patientName,
-        mobileNumber: selectedFollowUpPatient.mobileNumber,
-        visitType: 'FOLLOW_UP',
+        parentAppointmentId: selectedFollowUpPatient.appointmentId,
+        appointmentDate: followUpDate,
+        appointmentTime: followUpTime,
+        notes: followUpNotes.trim() || undefined,
       });
       setFollowUpSuccess('Follow-up visit registered successfully!');
       refreshPatientList(pageNumber, pageSize);
@@ -440,6 +514,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
             placeholder="Search patients by name or mobile..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setPageNumber(0); fetchBySearchOrRefresh(searchQuery, 0, pageSize); } }}
           />
         </div>
         <div className="rd-actions-right">
@@ -503,8 +578,8 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                 </div>
                 <div className="rd-date-presets">
                   <button className="rd-preset-btn" onClick={() => applyPreset(getToday(), getToday())}>Today</button>
-                  <button className="rd-preset-btn" onClick={() => { const d = new Date(); d.setDate(d.getDate() - 7); applyPreset(d.toISOString().split('T')[0], getToday()); }}>Last 7 days</button>
-                  <button className="rd-preset-btn" onClick={() => { const d = new Date(); d.setDate(d.getDate() - 30); applyPreset(d.toISOString().split('T')[0], getToday()); }}>Last 30 days</button>
+                  <button className="rd-preset-btn" onClick={() => applyPreset(daysAgo(7), getToday())}>Last 7 days</button>
+                  <button className="rd-preset-btn" onClick={() => applyPreset(daysAgo(30), getToday())}>Last 30 days</button>
                 </div>
                 <button className="rd-date-apply-btn" onClick={handleApplyDateRange}>Apply</button>
               </div>
@@ -543,7 +618,8 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
           <div className="rd-col-datetime">Appointment Date & Time</div>
           <div className="rd-col-mobile">Mobile Number</div>
           <div className="rd-col-status">Status</div>
-          <div className="rd-col-action">Action</div>
+          <div className="rd-col-edit">Edit</div>
+          <div className="rd-col-delete">Delete</div>
         </div>
 
         <div className="rd-patient-list">
@@ -554,14 +630,9 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
             <div className="rd-no-results rd-error-msg">{errorMsg}</div>
           )}
           {!loading && !errorMsg && patients.map((patient, index) => (
-            <div key={`${patient.patientName}-${patient.appointmentTime}-${index}`} className="rd-patient-card">
+            <div key={patient.appointmentId || `${patient.patientName}-${index}`} className="rd-patient-card">
               <div className="rd-col-name rd-patient-name-cell">
-                <div className="rd-patient-avatar">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="8" r="4" stroke="#9ca3af" strokeWidth="2" />
-                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </div>
+                <div className="rd-patient-avatar"><UserIcon /></div>
                 <div className="rd-patient-info">
                   <div className="rd-patient-name">{patient.patientName}</div>
                   <span className="rd-patient-type-badge">{VISIT_TYPE_DISPLAY[patient.visitType] || patient.visitType}</span>
@@ -576,19 +647,24 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                   {STATUS_DISPLAY[patient.appointmentStatus] || patient.appointmentStatus}
                 </span>
               </div>
-              <div className="rd-col-action">
+              <div className="rd-col-edit">
                 <button
-                  className="rd-delete-btn"
-                  title="Delete patient"
-                  onClick={() => handleDeletePatient(patient.patientId)}
+                  className="rd-action-btn rd-edit-btn"
+                  title="Edit patient"
+                  onClick={() => handleEditPatient(patient)}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                    <path d="M10 11v6" />
-                    <path d="M14 11v6" />
-                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                  </svg>
+                  <EditIcon />
+                  <span>Edit</span>
+                </button>
+              </div>
+              <div className="rd-col-delete">
+                <button
+                  className="rd-action-btn rd-delete-btn"
+                  title="Delete patient"
+                  onClick={() => handleDeletePatient(patient.appointmentId)}
+                >
+                  <DeleteIcon />
+                  <span>Delete</span>
                 </button>
               </div>
             </div>
@@ -651,10 +727,9 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
               >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
+                {PAGE_SIZE_OPTIONS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -728,10 +803,9 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                     value={newPatientForm.gender}
                     onChange={handleNewPatientChange}
                   >
-                    <option value="">Select Gender</option>
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
+                    {GENDER_OPTIONS.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                   {newPatientErrors.gender && <span className="rd-field-error">{newPatientErrors.gender}</span>}
                 </div>
@@ -801,19 +875,61 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                   <div className="rd-followup-list">
                     {followUpResults.map((p, i) => (
                       <div
-                        key={`${p.patientId || p.mobileNumber}-${i}`}
-                        className={`rd-followup-item ${selectedFollowUpPatient?.patientId === p.patientId ? 'rd-followup-selected' : ''}`}
+                        key={`${p.appointmentId || p.patientId}-${i}`}
+                        className={`rd-followup-item ${selectedFollowUpPatient?.appointmentId === p.appointmentId ? 'rd-followup-selected' : ''}`}
                         onClick={() => setSelectedFollowUpPatient(p)}
                       >
                         <div className="rd-followup-item-name">{p.patientName}</div>
                         <div className="rd-followup-item-details">
                           <span>📱 {p.mobileNumber}</span>
-                          {p.appointmentDate && <span>📅 Last: {p.appointmentDate}</span>}
+                          {p.appointmentDate && <span>📅 {p.appointmentDate}</span>}
+                          {p.appointmentTime && <span>🕒 {formatTime12h(p.appointmentTime)}</span>}
+                          {p.appointmentStatus && (
+                            <span className={`rd-followup-status ${STATUS_CLASS_MAP[p.appointmentStatus] || ''}`}>
+                              {STATUS_DISPLAY[p.appointmentStatus] || p.appointmentStatus}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
+              )}
+
+              {selectedFollowUpPatient && (
+                <>
+                  <div className="rd-form-row">
+                    <div className="rd-form-group rd-form-half">
+                      <label className="rd-form-label">Appointment Date <span className="rd-required">*</span></label>
+                      <input
+                        type="date"
+                        className="rd-form-input"
+                        value={followUpDate}
+                        onChange={(e) => setFollowUpDate(e.target.value)}
+                        min={today}
+                      />
+                    </div>
+                    <div className="rd-form-group rd-form-half">
+                      <label className="rd-form-label">Appointment Time <span className="rd-required">*</span></label>
+                      <input
+                        type="time"
+                        className="rd-form-input"
+                        value={followUpTime}
+                        onChange={(e) => setFollowUpTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="rd-form-group">
+                    <label className="rd-form-label">Notes</label>
+                    <textarea
+                      className="rd-form-input rd-form-textarea"
+                      placeholder="E.g. Post-surgery checkup, medication review..."
+                      value={followUpNotes}
+                      onChange={(e) => setFollowUpNotes(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                </>
               )}
 
               <div className="rd-modal-footer">

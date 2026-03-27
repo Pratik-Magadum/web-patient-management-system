@@ -1,8 +1,43 @@
 // API Service for Hospital Management System
 const HOSPITAL_API_BASE_URL = import.meta.env.VITE_HOSPITAL_API_BASE_URL || 'http://localhost:9080';
+const IS_DEV = import.meta.env.DEV;
 
-if (import.meta.env.DEV) {
+if (IS_DEV) {
   console.log('🔌 Hospital API Base URL:', HOSPITAL_API_BASE_URL);
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────
+
+function apiUrl(path) {
+  return `${HOSPITAL_API_BASE_URL}${path}`;
+}
+
+function buildQuery(params) {
+  const qs = new URLSearchParams();
+  for (const [key, val] of Object.entries(params)) {
+    if (val != null && val !== '') qs.append(key, val);
+  }
+  const str = qs.toString();
+  return str ? `?${str}` : '';
+}
+
+function devLog(emoji, message, data) {
+  if (IS_DEV) console.log(`${emoji} ${message}`, data ?? '');
+}
+
+async function parseJsonResponse(response, errorPrefix) {
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result.message || `${errorPrefix}: ${response.status}`);
+  }
+  return result;
+}
+
+async function parseEmptyResponse(response, errorPrefix) {
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.message || `${errorPrefix}: ${response.status}`);
+  }
 }
 
 // ─── Token Management ───────────────────────────────────────────────
@@ -54,12 +89,8 @@ export async function refreshAccessToken() {
   const refreshToken = getRefreshToken();
   if (!refreshToken) throw new Error('No refresh token available');
 
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/auth/refresh`;
-  if (import.meta.env.DEV) {
-    console.log('🔄 Refreshing access token...');
-  }
-
-  const response = await fetch(url, {
+  devLog('🔄', 'Refreshing access token...');
+  const response = await fetch(apiUrl('/api/v1/auth/refresh'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
@@ -83,9 +114,7 @@ export async function refreshAccessToken() {
     hospitalName: localStorage.getItem(AUTH_KEYS.HOSPITAL_NAME),
   });
 
-  if (import.meta.env.DEV) {
-    console.log('✅ Token refreshed successfully');
-  }
+  devLog('✅', 'Token refreshed successfully');
   return accessToken;
 }
 
@@ -137,13 +166,11 @@ export async function authenticatedFetch(url, options = {}) {
 export async function logoutUser() {
   const refreshToken = getRefreshToken();
   try {
-    await authenticatedFetch(`${HOSPITAL_API_BASE_URL}/api/v1/auth/logout`, {
+    await authenticatedFetch(apiUrl('/api/v1/auth/logout'), {
       method: 'POST',
       body: JSON.stringify({ refreshToken }),
     });
-    if (import.meta.env.DEV) {
-      console.log('✅ Logged out successfully');
-    }
+    devLog('✅', 'Logged out successfully');
   } catch (error) {
     console.error('❌ Logout API error:', error);
   } finally {
@@ -152,12 +179,8 @@ export async function logoutUser() {
 }
 
 export async function getHospitalDetails(subdomain) {
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/hospitals/${subdomain}`;
-  if (import.meta.env.DEV) {
-    console.log(`📍 Fetching hospital details for: ${subdomain}`);
-  }
-
-  const response = await fetch(url, {
+  devLog('📍', `Fetching hospital details for: ${subdomain}`);
+  const response = await fetch(apiUrl(`/api/v1/hospitals/${subdomain}`), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   });
@@ -167,9 +190,7 @@ export async function getHospitalDetails(subdomain) {
   }
 
   const responseData = await response.json();
-  if (import.meta.env.DEV) {
-    console.log('✅ Hospital details received:', responseData);
-  }
+  devLog('✅', 'Hospital details received:', responseData);
 
   return {
     success: true,
@@ -181,170 +202,86 @@ export async function getHospitalDetails(subdomain) {
 }
 
 export async function loginUser(hospitalId, username, password) {
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/auth/login`;
-  if (import.meta.env.DEV) {
-    console.log(`🔐 Attempting login for: ${username}`);
-  }
-
-  const response = await fetch(url, {
+  devLog('🔐', `Attempting login for: ${username}`);
+  const response = await fetch(apiUrl('/api/v1/auth/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ hospitalId, username, password }),
   });
 
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || `Login failed: ${response.status}`);
-  }
-
+  const result = await parseJsonResponse(response, 'Login failed');
   const { accessToken, refreshToken, expiresIn, role, hospitalId: respHospitalId } = result.data;
   storeAuthData({ accessToken, refreshToken, expiresIn, role, hospitalId: respHospitalId || hospitalId });
 
-  if (import.meta.env.DEV) {
-    console.log('✅ Login successful, role:', role);
-  }
+  devLog('✅', 'Login successful, role:', role);
   return result;
 }
 
 /**
- * Search patients by name, phone, and date range.
- * If no params are provided, returns today's patients by default (server behavior).
+ * Search patients by date range with optional filters.
  */
 export async function searchPatients({ fromDate, toDate, patientStatus, visitType, page, size } = {}) {
-  const params = new URLSearchParams();
-  if (fromDate) params.append('fromDate', fromDate);
-  if (toDate) params.append('toDate', toDate);
-  if (patientStatus) params.append('patientStatus', patientStatus);
-  if (visitType) params.append('visitType', visitType);
-  if (page != null) params.append('page', page);
-  if (size != null) params.append('size', size);
+  const query = buildQuery({ fromDate, toDate, patientStatus, visitType, page, size });
+  devLog('🔍', 'Searching patients:', { fromDate, toDate, patientStatus, visitType, page, size });
 
-  const query = params.toString();
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/by-dates${query ? `?${query}` : ''}`;
-  if (import.meta.env.DEV) {
-    console.log('🔍 Searching patients:', { fromDate, toDate, patientStatus, visitType, page, size });
-  }
+  const response = await authenticatedFetch(apiUrl(`/api/v1/patients/by-dates${query}`), { method: 'GET' });
+  const result = await parseJsonResponse(response, 'Search failed');
 
-  const response = await authenticatedFetch(url, {
-    method: 'GET',
-  });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || `Search failed: ${response.status}`);
-  }
-
-  if (import.meta.env.DEV) {
-    console.log('✅ Patient search results:', result);
-  }
+  devLog('✅', 'Patient search results:', result);
   return result;
 }
 
 /**
  * Search patients by name or phone number.
  */
-export async function searchPatientsByNamePhone({ name, phonenumber, pageNumber, pageSize } = {}) {
-  const params = new URLSearchParams();
-  if (name) params.append('name', name);
-  if (phonenumber) params.append('phonenumber', phonenumber);
-  if (pageNumber != null) params.append('pageNumber', pageNumber);
-  if (pageSize != null) params.append('pageSize', pageSize);
+export async function searchPatientsByNamePhone({ name, phonenumber, patientStatus, pageNumber, pageSize } = {}) {
+  const query = buildQuery({ name, phonenumber, patientStatus, pageNumber, pageSize });
+  devLog('🔍', 'Searching patients by name/phone:', { name, phonenumber });
 
-  const query = params.toString();
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/search/by-name-phone${query ? `?${query}` : ''}`;
-  if (import.meta.env.DEV) {
-    console.log('🔍 Searching patients by name/phone:', { name, phonenumber });
-  }
+  const response = await authenticatedFetch(apiUrl(`/api/v1/patients/search/by-name-phone${query}`), { method: 'GET' });
+  const result = await parseJsonResponse(response, 'Search failed');
 
-  const response = await authenticatedFetch(url, {
-    method: 'GET',
-  });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || `Search failed: ${response.status}`);
-  }
-
-  if (import.meta.env.DEV) {
-    console.log('✅ Patient name/phone search results:', result);
-  }
+  devLog('✅', 'Patient name/phone search results:', result);
   return result;
 }
 
 /**
- * Delete a patient by ID.
+ * Delete an appointment by ID.
  */
-export async function deletePatient(patientId) {
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/${encodeURIComponent(patientId)}`;
-  if (import.meta.env.DEV) {
-    console.log('🗑️ Deleting patient:', patientId);
-  }
-
-  const response = await authenticatedFetch(url, {
-    method: 'DELETE',
-  });
-
-  if (!response.ok) {
-    const result = await response.json().catch(() => ({}));
-    throw new Error(result.message || `Delete failed: ${response.status}`);
-  }
-
-  if (import.meta.env.DEV) {
-    console.log('✅ Patient deleted:', patientId);
-  }
+export async function deleteAppointment(appointmentId) {
+  devLog('🗑️', 'Deleting appointment:', appointmentId);
+  const response = await authenticatedFetch(apiUrl(`/api/v1/appointments/${encodeURIComponent(appointmentId)}`), { method: 'DELETE' });
+  await parseEmptyResponse(response, 'Delete failed');
+  devLog('✅', 'Appointment deleted:', appointmentId);
 }
 
 /**
  * Register a new patient.
  */
 export async function registerNewPatient(patientData) {
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/register`;
-  if (import.meta.env.DEV) {
-    console.log('➕ Registering new patient:', patientData);
-  }
-
-  const response = await authenticatedFetch(url, {
+  devLog('➕', 'Registering new patient:', patientData);
+  const response = await authenticatedFetch(apiUrl('/api/v1/patients/register'), {
     method: 'POST',
     body: JSON.stringify(patientData),
   });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || `Registration failed: ${response.status}`);
-  }
-
-  if (import.meta.env.DEV) {
-    console.log('✅ Patient registered:', result);
-  }
+  const result = await parseJsonResponse(response, 'Registration failed');
+  devLog('✅', 'Patient registered:', result);
   return result;
 }
 
 /**
- * Register a follow-up visit for an existing patient.
+ * Register a follow-up appointment.
  */
-export async function registerFollowUpPatient(followUpData) {
-  const url = `${HOSPITAL_API_BASE_URL}/api/v1/patients/follow-up`;
-  if (import.meta.env.DEV) {
-    console.log('🔄 Registering follow-up patient:', followUpData);
-  }
+export async function registerFollowUpPatient({ parentAppointmentId, appointmentDate, appointmentTime, notes }) {
+  const body = { parentAppointmentId, appointmentDate, appointmentTime };
+  if (notes) body.notes = notes;
 
-  const response = await authenticatedFetch(url, {
+  devLog('🔄', 'Registering follow-up:', body);
+  const response = await authenticatedFetch(apiUrl('/api/v1/appointments/follow-up'), {
     method: 'POST',
-    body: JSON.stringify(followUpData),
+    body: JSON.stringify(body),
   });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || `Follow-up registration failed: ${response.status}`);
-  }
-
-  if (import.meta.env.DEV) {
-    console.log('✅ Follow-up registered:', result);
-  }
+  const result = await parseJsonResponse(response, 'Follow-up registration failed');
+  devLog('✅', 'Follow-up registered:', result);
   return result;
 }
