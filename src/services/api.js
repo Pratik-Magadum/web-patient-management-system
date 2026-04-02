@@ -260,7 +260,7 @@ export async function deleteAppointment(appointmentId) {
  */
 export async function registerNewPatient(patientData) {
   devLog('➕', 'Registering new patient:', patientData);
-  const response = await authenticatedFetch(apiUrl('/api/v1/patients/register'), {
+  const response = await authenticatedFetch(apiUrl('/api/v1/appointments/register'), {
     method: 'POST',
     body: JSON.stringify(patientData),
   });
@@ -283,5 +283,19 @@ export async function registerFollowUpPatient({ parentAppointmentId, appointment
   });
   const result = await parseJsonResponse(response, 'Follow-up registration failed');
   devLog('✅', 'Follow-up registered:', result);
+  return result;
+}
+
+/**
+ * Edit/update a patient appointment.
+ */
+export async function editPatient(patientData) {
+  devLog('✏️', 'Editing patient:', patientData);
+  const response = await authenticatedFetch(apiUrl('/api/v1/appointments/register'), {
+    method: 'PUT',
+    body: JSON.stringify(patientData),
+  });
+  const result = await parseJsonResponse(response, 'Update failed');
+  devLog('✅', 'Patient updated:', result);
   return result;
 }

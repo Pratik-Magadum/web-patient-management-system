@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { deleteAppointment, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone } from '../services/api';
+import { deleteAppointment, editPatient, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone } from '../services/api';
 import '../styles/receptionist.css';
 
 // ─── Constants ──────────────────────────────────────
@@ -49,7 +49,7 @@ const GENDER_OPTIONS = [
   { value: 'OTHER', label: 'Other' },
 ];
 
-const INITIAL_PATIENT_FORM = { patientName: '', mobileNumber: '', age: '', gender: '', address: '' };
+const INITIAL_PATIENT_FORM = { fullName: '', mobileNumber: '', email: '', age: '', gender: '', dateOfBirth: '', address: '', appointmentDate: '', appointmentTime: '', notes: '' };
 const INITIAL_STATS = { totalPatients: 0, completedPatients: 0, newPatients: 0, followUpPatients: 0 };
 
 // ─── SVG Icons ──────────────────────────────────────
@@ -152,6 +152,14 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   const [newPatientErrors, setNewPatientErrors] = useState({});
   const [newPatientSubmitting, setNewPatientSubmitting] = useState(false);
   const [newPatientSuccess, setNewPatientSuccess] = useState('');
+
+  // ─── Edit Patient Modal State ─────────────────────
+  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
+  const [editPatientForm, setEditPatientForm] = useState(INITIAL_PATIENT_FORM);
+  const [editPatientErrors, setEditPatientErrors] = useState({});
+  const [editPatientSubmitting, setEditPatientSubmitting] = useState(false);
+  const [editPatientSuccess, setEditPatientSuccess] = useState('');
+  const [editPatientId, setEditPatientId] = useState('');
 
   // ─── Follow-up Patient Modal State ────────────────
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
@@ -272,13 +280,94 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
   };
 
   const handleEditPatient = (patient) => {
-    // TODO: implement edit patient functionality
-    console.log('Edit patient:', patient);
+    setEditPatientId(patient.patientId || '');
+    setEditPatientForm({
+      fullName: patient.patientName || '',
+      mobileNumber: patient.mobileNumber || '',
+      email: patient.email || '',
+      age: patient.age != null ? String(patient.age) : '',
+      gender: patient.gender || '',
+      dateOfBirth: patient.dateOfBirth || '',
+      address: patient.address || '',
+      appointmentDate: patient.appointmentDate || getToday(),
+      appointmentTime: patient.appointmentTime || '',
+      notes: patient.notes || '',
+    });
+    setEditPatientErrors({});
+    setEditPatientSuccess('');
+    setShowEditPatientModal(true);
+  };
+
+  const closeEditPatientModal = () => {
+    setShowEditPatientModal(false);
+    setEditPatientErrors({});
+    setEditPatientSuccess('');
+  };
+
+  const handleEditPatientChange = (e) => {
+    const { name, value } = e.target;
+    setEditPatientForm((prev) => ({ ...prev, [name]: value }));
+    if (editPatientErrors[name]) {
+      setEditPatientErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const validateEditPatientForm = () => {
+    const errors = {};
+    if (!editPatientForm.fullName.trim()) errors.fullName = 'Full name is required';
+    if (!editPatientForm.mobileNumber.trim()) {
+      errors.mobileNumber = 'Mobile number is required';
+    } else if (!/^(\+91-?)?\d{10}$/.test(editPatientForm.mobileNumber.trim())) {
+      errors.mobileNumber = 'Enter a valid mobile number (e.g. 9800000001 or +91-9800000001)';
+    }
+    if (!editPatientForm.age) {
+      errors.age = 'Age is required';
+    } else if (isNaN(editPatientForm.age) || Number(editPatientForm.age) < 0 || Number(editPatientForm.age) > 150) {
+      errors.age = 'Enter a valid age (0-150)';
+    }
+    if (!editPatientForm.gender) errors.gender = 'Gender is required';
+    return errors;
+  };
+
+  const handleEditPatientSubmit = async (e) => {
+    e.preventDefault();
+    const errors = validateEditPatientForm();
+    if (Object.keys(errors).length > 0) {
+      setEditPatientErrors(errors);
+      return;
+    }
+    setEditPatientSubmitting(true);
+    setEditPatientSuccess('');
+    try {
+      const payload = {
+        patientId: editPatientId,
+        fullName: editPatientForm.fullName.trim(),
+        mobileNumber: editPatientForm.mobileNumber.trim(),
+        age: Number(editPatientForm.age),
+        gender: editPatientForm.gender,
+        appointmentDate: editPatientForm.appointmentDate || getToday(),
+        appointmentTime: editPatientForm.appointmentTime || '00:00:00',
+      };
+      if (editPatientForm.email.trim()) payload.email = editPatientForm.email.trim();
+      if (editPatientForm.dateOfBirth) payload.dateOfBirth = editPatientForm.dateOfBirth;
+      if (editPatientForm.address.trim()) payload.address = editPatientForm.address.trim();
+      if (editPatientForm.notes.trim()) payload.notes = editPatientForm.notes.trim();
+      await editPatient(payload);
+      setEditPatientSuccess('Patient updated successfully!');
+      refreshPatientList(pageNumber, pageSize);
+      setTimeout(() => closeEditPatientModal(), 1200);
+    } catch (err) {
+      setEditPatientErrors({ submit: err.message || 'Update failed. Please try again.' });
+    } finally {
+      setEditPatientSubmitting(false);
+    }
   };
 
   // ─── New Patient Modal Handlers ─────────────────────
   const openNewPatientModal = () => {
-    setNewPatientForm(INITIAL_PATIENT_FORM);
+    const now = new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`;
+    setNewPatientForm({ ...INITIAL_PATIENT_FORM, appointmentDate: getToday(), appointmentTime: currentTime });
     setNewPatientErrors({});
     setNewPatientSuccess('');
     setShowNewPatientModal(true);
@@ -300,11 +389,11 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
 
   const validateNewPatientForm = () => {
     const errors = {};
-    if (!newPatientForm.patientName.trim()) errors.patientName = 'Patient name is required';
+    if (!newPatientForm.fullName.trim()) errors.fullName = 'Full name is required';
     if (!newPatientForm.mobileNumber.trim()) {
       errors.mobileNumber = 'Mobile number is required';
-    } else if (!/^\d{10}$/.test(newPatientForm.mobileNumber.trim())) {
-      errors.mobileNumber = 'Enter a valid 10-digit mobile number';
+    } else if (!/^(\+91-?)?\d{10}$/.test(newPatientForm.mobileNumber.trim())) {
+      errors.mobileNumber = 'Enter a valid mobile number (e.g. 9800000001 or +91-9800000001)';
     }
     if (!newPatientForm.age) {
       errors.age = 'Age is required';
@@ -325,14 +414,19 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setNewPatientSubmitting(true);
     setNewPatientSuccess('');
     try {
-      await registerNewPatient({
-        patientName: newPatientForm.patientName.trim(),
+      const payload = {
+        fullName: newPatientForm.fullName.trim(),
         mobileNumber: newPatientForm.mobileNumber.trim(),
         age: Number(newPatientForm.age),
         gender: newPatientForm.gender,
-        address: newPatientForm.address.trim() || undefined,
-        visitType: 'NEW_VISIT',
-      });
+        appointmentDate: newPatientForm.appointmentDate || getToday(),
+        appointmentTime: newPatientForm.appointmentTime || '00:00:00',
+      };
+      if (newPatientForm.email.trim()) payload.email = newPatientForm.email.trim();
+      if (newPatientForm.dateOfBirth) payload.dateOfBirth = newPatientForm.dateOfBirth;
+      if (newPatientForm.address.trim()) payload.address = newPatientForm.address.trim();
+      if (newPatientForm.notes.trim()) payload.notes = newPatientForm.notes.trim();
+      await registerNewPatient(payload);
       setNewPatientSuccess('Patient registered successfully!');
       refreshPatientList(pageNumber, pageSize);
       setTimeout(() => closeNewPatientModal(), 1200);
@@ -739,9 +833,12 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       {/* ─── New Patient Modal ─────────────────────── */}
       {showNewPatientModal && (
         <div className="rd-modal-overlay" onClick={closeNewPatientModal}>
-          <div className="rd-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="rd-modal rd-modal-new-patient" onClick={(e) => e.stopPropagation()}>
             <div className="rd-modal-header">
-              <h2 className="rd-modal-title">Register New Patient</h2>
+              <div>
+                <h2 className="rd-modal-title">Add New Patient</h2>
+                <p className="rd-modal-subtitle">Enter patient information to create a new patient record.</p>
+              </div>
               <button className="rd-modal-close" onClick={closeNewPatientModal}>✕</button>
             </div>
             <form onSubmit={handleNewPatientSubmit} className="rd-modal-body">
@@ -752,48 +849,19 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                 <div className="rd-modal-success">{newPatientSuccess}</div>
               )}
 
-              <div className="rd-form-group">
-                <label className="rd-form-label">Patient Name <span className="rd-required">*</span></label>
-                <input
-                  type="text"
-                  name="patientName"
-                  className={`rd-form-input ${newPatientErrors.patientName ? 'rd-input-error' : ''}`}
-                  placeholder="Enter patient full name"
-                  value={newPatientForm.patientName}
-                  onChange={handleNewPatientChange}
-                  autoFocus
-                />
-                {newPatientErrors.patientName && <span className="rd-field-error">{newPatientErrors.patientName}</span>}
-              </div>
-
-              <div className="rd-form-group">
-                <label className="rd-form-label">Mobile Number <span className="rd-required">*</span></label>
-                <input
-                  type="tel"
-                  name="mobileNumber"
-                  className={`rd-form-input ${newPatientErrors.mobileNumber ? 'rd-input-error' : ''}`}
-                  placeholder="Enter 10-digit mobile number"
-                  value={newPatientForm.mobileNumber}
-                  onChange={handleNewPatientChange}
-                  maxLength={10}
-                />
-                {newPatientErrors.mobileNumber && <span className="rd-field-error">{newPatientErrors.mobileNumber}</span>}
-              </div>
-
               <div className="rd-form-row">
                 <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Age <span className="rd-required">*</span></label>
+                  <label className="rd-form-label">Full Name <span className="rd-required">*</span></label>
                   <input
-                    type="number"
-                    name="age"
-                    className={`rd-form-input ${newPatientErrors.age ? 'rd-input-error' : ''}`}
-                    placeholder="Age"
-                    value={newPatientForm.age}
+                    type="text"
+                    name="fullName"
+                    className={`rd-form-input ${newPatientErrors.fullName ? 'rd-input-error' : ''}`}
+                    placeholder="Enter patient's full name"
+                    value={newPatientForm.fullName}
                     onChange={handleNewPatientChange}
-                    min="0"
-                    max="150"
+                    autoFocus
                   />
-                  {newPatientErrors.age && <span className="rd-field-error">{newPatientErrors.age}</span>}
+                  {newPatientErrors.fullName && <span className="rd-field-error">{newPatientErrors.fullName}</span>}
                 </div>
                 <div className="rd-form-group rd-form-half">
                   <label className="rd-form-label">Gender <span className="rd-required">*</span></label>
@@ -811,22 +879,276 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                 </div>
               </div>
 
+              <div className="rd-form-row">
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Age <span className="rd-required">*</span></label>
+                  <input
+                    type="number"
+                    name="age"
+                    className={`rd-form-input ${newPatientErrors.age ? 'rd-input-error' : ''}`}
+                    placeholder="Enter age"
+                    value={newPatientForm.age}
+                    onChange={handleNewPatientChange}
+                    min="0"
+                    max="150"
+                  />
+                  {newPatientErrors.age && <span className="rd-field-error">{newPatientErrors.age}</span>}
+                </div>
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Phone Number <span className="rd-required">*</span></label>
+                  <input
+                    type="tel"
+                    name="mobileNumber"
+                    className={`rd-form-input ${newPatientErrors.mobileNumber ? 'rd-input-error' : ''}`}
+                    placeholder="Enter phone number"
+                    value={newPatientForm.mobileNumber}
+                    onChange={handleNewPatientChange}
+                    maxLength={15}
+                  />
+                  {newPatientErrors.mobileNumber && <span className="rd-field-error">{newPatientErrors.mobileNumber}</span>}
+                </div>
+              </div>
+
+              <div className="rd-form-row">
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    className="rd-form-input"
+                    placeholder="Enter email address"
+                    value={newPatientForm.email}
+                    onChange={handleNewPatientChange}
+                  />
+                </div>
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Date of Birth</label>
+                  <input
+                    type="date"
+                    name="dateOfBirth"
+                    className="rd-form-input"
+                    value={newPatientForm.dateOfBirth}
+                    onChange={handleNewPatientChange}
+                    max={getToday()}
+                  />
+                </div>
+              </div>
+
               <div className="rd-form-group">
                 <label className="rd-form-label">Address</label>
-                <textarea
+                <input
+                  type="text"
                   name="address"
-                  className="rd-form-input rd-form-textarea"
-                  placeholder="Enter address (optional)"
+                  className="rd-form-input"
+                  placeholder="Enter patient's full address"
                   value={newPatientForm.address}
                   onChange={handleNewPatientChange}
-                  rows={2}
+                />
+              </div>
+
+              <div className="rd-form-row">
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Appointment Date</label>
+                  <input
+                    type="date"
+                    name="appointmentDate"
+                    className="rd-form-input"
+                    value={newPatientForm.appointmentDate}
+                    onChange={handleNewPatientChange}
+                  />
+                </div>
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Appointment Time</label>
+                  <input
+                    type="time"
+                    name="appointmentTime"
+                    className="rd-form-input"
+                    value={newPatientForm.appointmentTime}
+                    onChange={handleNewPatientChange}
+                    step="1"
+                  />
+                </div>
+              </div>
+
+              <div className="rd-form-group">
+                <label className="rd-form-label">Notes</label>
+                <textarea
+                  name="notes"
+                  className="rd-form-input rd-form-textarea"
+                  placeholder="Enter any notes (e.g. Eye checkup, Follow-up)"
+                  value={newPatientForm.notes}
+                  onChange={handleNewPatientChange}
+                  rows={3}
                 />
               </div>
 
               <div className="rd-modal-footer">
                 <button type="button" className="rd-modal-cancel-btn" onClick={closeNewPatientModal}>Cancel</button>
-                <button type="submit" className="rd-modal-submit-btn" disabled={newPatientSubmitting}>
-                  {newPatientSubmitting ? 'Registering...' : 'Register Patient'}
+                <button type="submit" className="rd-modal-submit-btn rd-modal-add-btn" disabled={newPatientSubmitting}>
+                  {newPatientSubmitting ? 'Adding...' : 'Add Patient'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Edit Patient Modal ──────────────────────── */}
+      {showEditPatientModal && (
+        <div className="rd-modal-overlay" onClick={closeEditPatientModal}>
+          <div className="rd-modal rd-modal-new-patient" onClick={(e) => e.stopPropagation()}>
+            <div className="rd-modal-header">
+              <div>
+                <h2 className="rd-modal-title">Edit Patient</h2>
+                <p className="rd-modal-subtitle">Update patient information and appointment details.</p>
+              </div>
+              <button className="rd-modal-close" onClick={closeEditPatientModal}>✕</button>
+            </div>
+            <form onSubmit={handleEditPatientSubmit} className="rd-modal-body">
+              {editPatientErrors.submit && (
+                <div className="rd-modal-error">{editPatientErrors.submit}</div>
+              )}
+              {editPatientSuccess && (
+                <div className="rd-modal-success">{editPatientSuccess}</div>
+              )}
+
+              <div className="rd-form-row">
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Full Name <span className="rd-required">*</span></label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    className={`rd-form-input ${editPatientErrors.fullName ? 'rd-input-error' : ''}`}
+                    placeholder="Enter patient's full name"
+                    value={editPatientForm.fullName}
+                    onChange={handleEditPatientChange}
+                    autoFocus
+                  />
+                  {editPatientErrors.fullName && <span className="rd-field-error">{editPatientErrors.fullName}</span>}
+                </div>
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Gender <span className="rd-required">*</span></label>
+                  <select
+                    name="gender"
+                    className={`rd-form-input ${editPatientErrors.gender ? 'rd-input-error' : ''}`}
+                    value={editPatientForm.gender}
+                    onChange={handleEditPatientChange}
+                  >
+                    {GENDER_OPTIONS.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  {editPatientErrors.gender && <span className="rd-field-error">{editPatientErrors.gender}</span>}
+                </div>
+              </div>
+
+              <div className="rd-form-row">
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Age <span className="rd-required">*</span></label>
+                  <input
+                    type="number"
+                    name="age"
+                    className={`rd-form-input ${editPatientErrors.age ? 'rd-input-error' : ''}`}
+                    placeholder="Enter age"
+                    value={editPatientForm.age}
+                    onChange={handleEditPatientChange}
+                    min="0"
+                    max="150"
+                  />
+                  {editPatientErrors.age && <span className="rd-field-error">{editPatientErrors.age}</span>}
+                </div>
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Phone Number <span className="rd-required">*</span></label>
+                  <input
+                    type="tel"
+                    name="mobileNumber"
+                    className={`rd-form-input ${editPatientErrors.mobileNumber ? 'rd-input-error' : ''}`}
+                    placeholder="Enter phone number"
+                    value={editPatientForm.mobileNumber}
+                    onChange={handleEditPatientChange}
+                    maxLength={15}
+                  />
+                  {editPatientErrors.mobileNumber && <span className="rd-field-error">{editPatientErrors.mobileNumber}</span>}
+                </div>
+              </div>
+
+              <div className="rd-form-row">
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    className="rd-form-input"
+                    placeholder="Enter email address"
+                    value={editPatientForm.email}
+                    onChange={handleEditPatientChange}
+                  />
+                </div>
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Date of Birth</label>
+                  <input
+                    type="date"
+                    name="dateOfBirth"
+                    className="rd-form-input"
+                    value={editPatientForm.dateOfBirth}
+                    onChange={handleEditPatientChange}
+                    max={getToday()}
+                  />
+                </div>
+              </div>
+
+              <div className="rd-form-group">
+                <label className="rd-form-label">Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  className="rd-form-input"
+                  placeholder="Enter patient's full address"
+                  value={editPatientForm.address}
+                  onChange={handleEditPatientChange}
+                />
+              </div>
+
+              <div className="rd-form-row">
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Appointment Date</label>
+                  <input
+                    type="date"
+                    name="appointmentDate"
+                    className="rd-form-input"
+                    value={editPatientForm.appointmentDate}
+                    onChange={handleEditPatientChange}
+                  />
+                </div>
+                <div className="rd-form-group rd-form-half">
+                  <label className="rd-form-label">Appointment Time</label>
+                  <input
+                    type="time"
+                    name="appointmentTime"
+                    className="rd-form-input"
+                    value={editPatientForm.appointmentTime}
+                    onChange={handleEditPatientChange}
+                    step="1"
+                  />
+                </div>
+              </div>
+
+              <div className="rd-form-group">
+                <label className="rd-form-label">Notes</label>
+                <textarea
+                  name="notes"
+                  className="rd-form-input rd-form-textarea"
+                  placeholder="Enter any notes (e.g. Eye checkup, Follow-up)"
+                  value={editPatientForm.notes}
+                  onChange={handleEditPatientChange}
+                  rows={3}
+                />
+              </div>
+
+              <div className="rd-modal-footer">
+                <button type="button" className="rd-modal-cancel-btn" onClick={closeEditPatientModal}>Cancel</button>
+                <button type="submit" className="rd-modal-submit-btn" disabled={editPatientSubmitting}>
+                  {editPatientSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

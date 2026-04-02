@@ -794,8 +794,27 @@
   animation: rd-slide-up 0.25s ease;
 }
 
+.rd-modal-new-patient {
+  width: 600px;
+}
+
 .rd-modal-followup {
   width: 560px;
+}
+
+.rd-modal-subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 4px 0 0 0;
+  font-weight: 400;
+}
+
+.rd-modal-add-btn {
+  background: #16a34a;
+}
+
+.rd-modal-add-btn:hover:not(:disabled) {
+  background: #15803d;
 }
 
 @keyframes rd-slide-up {
@@ -883,6 +902,12 @@
 
 .rd-input-error:focus {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.rd-input-readonly {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
 }
 
 .rd-form-textarea {
@@ -1205,5 +1230,22 @@
 
   .rd-col-status {
     padding-left: 54px;
+  }
+}
+
+/* ─── New Patient Modal responsive ─── */
+@media (max-width: 640px) {
+  .rd-modal-new-patient {
+    width: 95vw;
+  }
+
+  .rd-modal-new-patient .rd-form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .rd-modal-new-patient .rd-form-half {
+    flex: none;
+    width: 100%;
   }
 }
