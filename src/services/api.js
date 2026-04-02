@@ -287,11 +287,11 @@ export async function registerFollowUpPatient({ parentAppointmentId, appointment
 }
 
 /**
- * Edit/update a patient appointment.
+ * Edit/update a patient.
  */
-export async function editPatient(patientData) {
-  devLog('✏️', 'Editing patient:', patientData);
-  const response = await authenticatedFetch(apiUrl('/api/v1/appointments/register'), {
+export async function editPatient(patientId, patientData) {
+  devLog('✏️', 'Editing patient:', { patientId, ...patientData });
+  const response = await authenticatedFetch(apiUrl(`/api/v1/patients/${encodeURIComponent(patientId)}`), {
     method: 'PUT',
     body: JSON.stringify(patientData),
   });

@@ -340,7 +340,6 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setEditPatientSuccess('');
     try {
       const payload = {
-        patientId: editPatientId,
         fullName: editPatientForm.fullName.trim(),
         mobileNumber: editPatientForm.mobileNumber.trim(),
         age: Number(editPatientForm.age),
@@ -352,7 +351,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       if (editPatientForm.dateOfBirth) payload.dateOfBirth = editPatientForm.dateOfBirth;
       if (editPatientForm.address.trim()) payload.address = editPatientForm.address.trim();
       if (editPatientForm.notes.trim()) payload.notes = editPatientForm.notes.trim();
-      await editPatient(payload);
+      await editPatient(editPatientId, payload);
       setEditPatientSuccess('Patient updated successfully!');
       refreshPatientList(pageNumber, pageSize);
       setTimeout(() => closeEditPatientModal(), 1200);
