@@ -78,8 +78,6 @@ const DeleteIcon = () => (
 
 // ─── Utility Functions ──────────────────────────────
 
-// ─── Utility Functions ──────────────────────────────
-
 function getToday() {
   return new Date().toISOString().split('T')[0];
 }
@@ -123,6 +121,180 @@ function getCalendarDayClass(dateStr, today, pendingFrom, pendingTo, rangeStart)
   if (isEdge) classes.push('rd-cal-edge');
   else if (inRange) classes.push('rd-cal-in-range');
   return classes.join(' ');
+}
+
+// ─── Shared Form Helpers ────────────────────────────
+
+function validatePatientForm(form) {
+  const errors = {};
+  if (!form.fullName.trim()) errors.fullName = 'Full name is required';
+  if (!form.mobileNumber.trim()) {
+    errors.mobileNumber = 'Mobile number is required';
+  } else if (!/^(\+91-?)?\d{10}$/.test(form.mobileNumber.trim())) {
+    errors.mobileNumber = 'Enter a valid mobile number (e.g. 9800000001 or +91-9800000001)';
+  }
+  if (!form.age) {
+    errors.age = 'Age is required';
+  } else if (isNaN(form.age) || Number(form.age) < 0 || Number(form.age) > 150) {
+    errors.age = 'Enter a valid age (0-150)';
+  }
+  if (!form.gender) errors.gender = 'Gender is required';
+  return errors;
+}
+
+function buildPatientPayload(form) {
+  const payload = {
+    fullName: form.fullName.trim(),
+    mobileNumber: form.mobileNumber.trim(),
+    age: Number(form.age),
+    gender: form.gender,
+    appointmentDate: form.appointmentDate || getToday(),
+    appointmentTime: form.appointmentTime || '00:00:00',
+  };
+  if (form.email.trim()) payload.email = form.email.trim();
+  if (form.dateOfBirth) payload.dateOfBirth = form.dateOfBirth;
+  if (form.address.trim()) payload.address = form.address.trim();
+  if (form.notes.trim()) payload.notes = form.notes.trim();
+  return payload;
+}
+
+function PatientFormFields({ form, errors, onChange }) {
+  return (
+    <>
+      <div className="rd-form-row">
+        <div className="rd-form-group rd-form-half">
+          <label className="rd-form-label">Full Name <span className="rd-required">*</span></label>
+          <input
+            type="text"
+            name="fullName"
+            className={`rd-form-input ${errors.fullName ? 'rd-input-error' : ''}`}
+            placeholder="Enter patient's full name"
+            value={form.fullName}
+            onChange={onChange}
+            autoFocus
+          />
+          {errors.fullName && <span className="rd-field-error">{errors.fullName}</span>}
+        </div>
+        <div className="rd-form-group rd-form-half">
+          <label className="rd-form-label">Gender <span className="rd-required">*</span></label>
+          <select
+            name="gender"
+            className={`rd-form-input ${errors.gender ? 'rd-input-error' : ''}`}
+            value={form.gender}
+            onChange={onChange}
+          >
+            {GENDER_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          {errors.gender && <span className="rd-field-error">{errors.gender}</span>}
+        </div>
+      </div>
+
+      <div className="rd-form-row">
+        <div className="rd-form-group rd-form-half">
+          <label className="rd-form-label">Age <span className="rd-required">*</span></label>
+          <input
+            type="number"
+            name="age"
+            className={`rd-form-input ${errors.age ? 'rd-input-error' : ''}`}
+            placeholder="Enter age"
+            value={form.age}
+            onChange={onChange}
+            min="0"
+            max="150"
+          />
+          {errors.age && <span className="rd-field-error">{errors.age}</span>}
+        </div>
+        <div className="rd-form-group rd-form-half">
+          <label className="rd-form-label">Phone Number <span className="rd-required">*</span></label>
+          <input
+            type="tel"
+            name="mobileNumber"
+            className={`rd-form-input ${errors.mobileNumber ? 'rd-input-error' : ''}`}
+            placeholder="Enter phone number"
+            value={form.mobileNumber}
+            onChange={onChange}
+            maxLength={15}
+          />
+          {errors.mobileNumber && <span className="rd-field-error">{errors.mobileNumber}</span>}
+        </div>
+      </div>
+
+      <div className="rd-form-row">
+        <div className="rd-form-group rd-form-half">
+          <label className="rd-form-label">Email</label>
+          <input
+            type="email"
+            name="email"
+            className="rd-form-input"
+            placeholder="Enter email address"
+            value={form.email}
+            onChange={onChange}
+          />
+        </div>
+        <div className="rd-form-group rd-form-half">
+          <label className="rd-form-label">Date of Birth</label>
+          <input
+            type="date"
+            name="dateOfBirth"
+            className="rd-form-input"
+            value={form.dateOfBirth}
+            onChange={onChange}
+            max={getToday()}
+          />
+        </div>
+      </div>
+
+      <div className="rd-form-group">
+        <label className="rd-form-label">Address</label>
+        <input
+          type="text"
+          name="address"
+          className="rd-form-input"
+          placeholder="Enter patient's full address"
+          value={form.address}
+          onChange={onChange}
+        />
+      </div>
+
+      <div className="rd-form-row">
+        <div className="rd-form-group rd-form-half">
+          <label className="rd-form-label">Appointment Date</label>
+          <input
+            type="date"
+            name="appointmentDate"
+            className="rd-form-input"
+            value={form.appointmentDate}
+            onChange={onChange}
+          />
+        </div>
+        <div className="rd-form-group rd-form-half">
+          <label className="rd-form-label">Appointment Time</label>
+          <input
+            type="time"
+            name="appointmentTime"
+            className="rd-form-input"
+            value={form.appointmentTime}
+            onChange={onChange}
+            step="1"
+          />
+        </div>
+      </div>
+
+      <div className="rd-form-group">
+        <label className="rd-form-label">Notes</label>
+        <textarea
+          name="notes"
+          className="rd-form-input rd-form-textarea"
+          placeholder="Enter any notes (e.g. Eye checkup, Follow-up)"
+          value={form.notes}
+          onChange={onChange}
+          rows={3}
+        />
+      </div>
+    </>
+  );
 }
 
 export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
@@ -312,26 +484,9 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     }
   };
 
-  const validateEditPatientForm = () => {
-    const errors = {};
-    if (!editPatientForm.fullName.trim()) errors.fullName = 'Full name is required';
-    if (!editPatientForm.mobileNumber.trim()) {
-      errors.mobileNumber = 'Mobile number is required';
-    } else if (!/^(\+91-?)?\d{10}$/.test(editPatientForm.mobileNumber.trim())) {
-      errors.mobileNumber = 'Enter a valid mobile number (e.g. 9800000001 or +91-9800000001)';
-    }
-    if (!editPatientForm.age) {
-      errors.age = 'Age is required';
-    } else if (isNaN(editPatientForm.age) || Number(editPatientForm.age) < 0 || Number(editPatientForm.age) > 150) {
-      errors.age = 'Enter a valid age (0-150)';
-    }
-    if (!editPatientForm.gender) errors.gender = 'Gender is required';
-    return errors;
-  };
-
   const handleEditPatientSubmit = async (e) => {
     e.preventDefault();
-    const errors = validateEditPatientForm();
+    const errors = validatePatientForm(editPatientForm);
     if (Object.keys(errors).length > 0) {
       setEditPatientErrors(errors);
       return;
@@ -339,19 +494,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setEditPatientSubmitting(true);
     setEditPatientSuccess('');
     try {
-      const payload = {
-        fullName: editPatientForm.fullName.trim(),
-        mobileNumber: editPatientForm.mobileNumber.trim(),
-        age: Number(editPatientForm.age),
-        gender: editPatientForm.gender,
-        appointmentDate: editPatientForm.appointmentDate || getToday(),
-        appointmentTime: editPatientForm.appointmentTime || '00:00:00',
-      };
-      if (editPatientForm.email.trim()) payload.email = editPatientForm.email.trim();
-      if (editPatientForm.dateOfBirth) payload.dateOfBirth = editPatientForm.dateOfBirth;
-      if (editPatientForm.address.trim()) payload.address = editPatientForm.address.trim();
-      if (editPatientForm.notes.trim()) payload.notes = editPatientForm.notes.trim();
-      await editPatient(editPatientId, payload);
+      await editPatient(editPatientId, buildPatientPayload(editPatientForm));
       setEditPatientSuccess('Patient updated successfully!');
       refreshPatientList(pageNumber, pageSize);
       setTimeout(() => closeEditPatientModal(), 1200);
@@ -386,26 +529,9 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     }
   };
 
-  const validateNewPatientForm = () => {
-    const errors = {};
-    if (!newPatientForm.fullName.trim()) errors.fullName = 'Full name is required';
-    if (!newPatientForm.mobileNumber.trim()) {
-      errors.mobileNumber = 'Mobile number is required';
-    } else if (!/^(\+91-?)?\d{10}$/.test(newPatientForm.mobileNumber.trim())) {
-      errors.mobileNumber = 'Enter a valid mobile number (e.g. 9800000001 or +91-9800000001)';
-    }
-    if (!newPatientForm.age) {
-      errors.age = 'Age is required';
-    } else if (isNaN(newPatientForm.age) || Number(newPatientForm.age) < 0 || Number(newPatientForm.age) > 150) {
-      errors.age = 'Enter a valid age (0-150)';
-    }
-    if (!newPatientForm.gender) errors.gender = 'Gender is required';
-    return errors;
-  };
-
   const handleNewPatientSubmit = async (e) => {
     e.preventDefault();
-    const errors = validateNewPatientForm();
+    const errors = validatePatientForm(newPatientForm);
     if (Object.keys(errors).length > 0) {
       setNewPatientErrors(errors);
       return;
@@ -413,19 +539,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     setNewPatientSubmitting(true);
     setNewPatientSuccess('');
     try {
-      const payload = {
-        fullName: newPatientForm.fullName.trim(),
-        mobileNumber: newPatientForm.mobileNumber.trim(),
-        age: Number(newPatientForm.age),
-        gender: newPatientForm.gender,
-        appointmentDate: newPatientForm.appointmentDate || getToday(),
-        appointmentTime: newPatientForm.appointmentTime || '00:00:00',
-      };
-      if (newPatientForm.email.trim()) payload.email = newPatientForm.email.trim();
-      if (newPatientForm.dateOfBirth) payload.dateOfBirth = newPatientForm.dateOfBirth;
-      if (newPatientForm.address.trim()) payload.address = newPatientForm.address.trim();
-      if (newPatientForm.notes.trim()) payload.notes = newPatientForm.notes.trim();
-      await registerNewPatient(payload);
+      await registerNewPatient(buildPatientPayload(newPatientForm));
       setNewPatientSuccess('Patient registered successfully!');
       refreshPatientList(pageNumber, pageSize);
       setTimeout(() => closeNewPatientModal(), 1200);
@@ -848,138 +962,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                 <div className="rd-modal-success">{newPatientSuccess}</div>
               )}
 
-              <div className="rd-form-row">
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Full Name <span className="rd-required">*</span></label>
-                  <input
-                    type="text"
-                    name="fullName"
-                    className={`rd-form-input ${newPatientErrors.fullName ? 'rd-input-error' : ''}`}
-                    placeholder="Enter patient's full name"
-                    value={newPatientForm.fullName}
-                    onChange={handleNewPatientChange}
-                    autoFocus
-                  />
-                  {newPatientErrors.fullName && <span className="rd-field-error">{newPatientErrors.fullName}</span>}
-                </div>
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Gender <span className="rd-required">*</span></label>
-                  <select
-                    name="gender"
-                    className={`rd-form-input ${newPatientErrors.gender ? 'rd-input-error' : ''}`}
-                    value={newPatientForm.gender}
-                    onChange={handleNewPatientChange}
-                  >
-                    {GENDER_OPTIONS.map(({ value, label }) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                  {newPatientErrors.gender && <span className="rd-field-error">{newPatientErrors.gender}</span>}
-                </div>
-              </div>
-
-              <div className="rd-form-row">
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Age <span className="rd-required">*</span></label>
-                  <input
-                    type="number"
-                    name="age"
-                    className={`rd-form-input ${newPatientErrors.age ? 'rd-input-error' : ''}`}
-                    placeholder="Enter age"
-                    value={newPatientForm.age}
-                    onChange={handleNewPatientChange}
-                    min="0"
-                    max="150"
-                  />
-                  {newPatientErrors.age && <span className="rd-field-error">{newPatientErrors.age}</span>}
-                </div>
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Phone Number <span className="rd-required">*</span></label>
-                  <input
-                    type="tel"
-                    name="mobileNumber"
-                    className={`rd-form-input ${newPatientErrors.mobileNumber ? 'rd-input-error' : ''}`}
-                    placeholder="Enter phone number"
-                    value={newPatientForm.mobileNumber}
-                    onChange={handleNewPatientChange}
-                    maxLength={15}
-                  />
-                  {newPatientErrors.mobileNumber && <span className="rd-field-error">{newPatientErrors.mobileNumber}</span>}
-                </div>
-              </div>
-
-              <div className="rd-form-row">
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    className="rd-form-input"
-                    placeholder="Enter email address"
-                    value={newPatientForm.email}
-                    onChange={handleNewPatientChange}
-                  />
-                </div>
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Date of Birth</label>
-                  <input
-                    type="date"
-                    name="dateOfBirth"
-                    className="rd-form-input"
-                    value={newPatientForm.dateOfBirth}
-                    onChange={handleNewPatientChange}
-                    max={getToday()}
-                  />
-                </div>
-              </div>
-
-              <div className="rd-form-group">
-                <label className="rd-form-label">Address</label>
-                <input
-                  type="text"
-                  name="address"
-                  className="rd-form-input"
-                  placeholder="Enter patient's full address"
-                  value={newPatientForm.address}
-                  onChange={handleNewPatientChange}
-                />
-              </div>
-
-              <div className="rd-form-row">
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Appointment Date</label>
-                  <input
-                    type="date"
-                    name="appointmentDate"
-                    className="rd-form-input"
-                    value={newPatientForm.appointmentDate}
-                    onChange={handleNewPatientChange}
-                  />
-                </div>
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Appointment Time</label>
-                  <input
-                    type="time"
-                    name="appointmentTime"
-                    className="rd-form-input"
-                    value={newPatientForm.appointmentTime}
-                    onChange={handleNewPatientChange}
-                    step="1"
-                  />
-                </div>
-              </div>
-
-              <div className="rd-form-group">
-                <label className="rd-form-label">Notes</label>
-                <textarea
-                  name="notes"
-                  className="rd-form-input rd-form-textarea"
-                  placeholder="Enter any notes (e.g. Eye checkup, Follow-up)"
-                  value={newPatientForm.notes}
-                  onChange={handleNewPatientChange}
-                  rows={3}
-                />
-              </div>
+              <PatientFormFields form={newPatientForm} errors={newPatientErrors} onChange={handleNewPatientChange} />
 
               <div className="rd-modal-footer">
                 <button type="button" className="rd-modal-cancel-btn" onClick={closeNewPatientModal}>Cancel</button>
@@ -1011,138 +994,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
                 <div className="rd-modal-success">{editPatientSuccess}</div>
               )}
 
-              <div className="rd-form-row">
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Full Name <span className="rd-required">*</span></label>
-                  <input
-                    type="text"
-                    name="fullName"
-                    className={`rd-form-input ${editPatientErrors.fullName ? 'rd-input-error' : ''}`}
-                    placeholder="Enter patient's full name"
-                    value={editPatientForm.fullName}
-                    onChange={handleEditPatientChange}
-                    autoFocus
-                  />
-                  {editPatientErrors.fullName && <span className="rd-field-error">{editPatientErrors.fullName}</span>}
-                </div>
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Gender <span className="rd-required">*</span></label>
-                  <select
-                    name="gender"
-                    className={`rd-form-input ${editPatientErrors.gender ? 'rd-input-error' : ''}`}
-                    value={editPatientForm.gender}
-                    onChange={handleEditPatientChange}
-                  >
-                    {GENDER_OPTIONS.map(({ value, label }) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                  {editPatientErrors.gender && <span className="rd-field-error">{editPatientErrors.gender}</span>}
-                </div>
-              </div>
-
-              <div className="rd-form-row">
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Age <span className="rd-required">*</span></label>
-                  <input
-                    type="number"
-                    name="age"
-                    className={`rd-form-input ${editPatientErrors.age ? 'rd-input-error' : ''}`}
-                    placeholder="Enter age"
-                    value={editPatientForm.age}
-                    onChange={handleEditPatientChange}
-                    min="0"
-                    max="150"
-                  />
-                  {editPatientErrors.age && <span className="rd-field-error">{editPatientErrors.age}</span>}
-                </div>
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Phone Number <span className="rd-required">*</span></label>
-                  <input
-                    type="tel"
-                    name="mobileNumber"
-                    className={`rd-form-input ${editPatientErrors.mobileNumber ? 'rd-input-error' : ''}`}
-                    placeholder="Enter phone number"
-                    value={editPatientForm.mobileNumber}
-                    onChange={handleEditPatientChange}
-                    maxLength={15}
-                  />
-                  {editPatientErrors.mobileNumber && <span className="rd-field-error">{editPatientErrors.mobileNumber}</span>}
-                </div>
-              </div>
-
-              <div className="rd-form-row">
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    className="rd-form-input"
-                    placeholder="Enter email address"
-                    value={editPatientForm.email}
-                    onChange={handleEditPatientChange}
-                  />
-                </div>
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Date of Birth</label>
-                  <input
-                    type="date"
-                    name="dateOfBirth"
-                    className="rd-form-input"
-                    value={editPatientForm.dateOfBirth}
-                    onChange={handleEditPatientChange}
-                    max={getToday()}
-                  />
-                </div>
-              </div>
-
-              <div className="rd-form-group">
-                <label className="rd-form-label">Address</label>
-                <input
-                  type="text"
-                  name="address"
-                  className="rd-form-input"
-                  placeholder="Enter patient's full address"
-                  value={editPatientForm.address}
-                  onChange={handleEditPatientChange}
-                />
-              </div>
-
-              <div className="rd-form-row">
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Appointment Date</label>
-                  <input
-                    type="date"
-                    name="appointmentDate"
-                    className="rd-form-input"
-                    value={editPatientForm.appointmentDate}
-                    onChange={handleEditPatientChange}
-                  />
-                </div>
-                <div className="rd-form-group rd-form-half">
-                  <label className="rd-form-label">Appointment Time</label>
-                  <input
-                    type="time"
-                    name="appointmentTime"
-                    className="rd-form-input"
-                    value={editPatientForm.appointmentTime}
-                    onChange={handleEditPatientChange}
-                    step="1"
-                  />
-                </div>
-              </div>
-
-              <div className="rd-form-group">
-                <label className="rd-form-label">Notes</label>
-                <textarea
-                  name="notes"
-                  className="rd-form-input rd-form-textarea"
-                  placeholder="Enter any notes (e.g. Eye checkup, Follow-up)"
-                  value={editPatientForm.notes}
-                  onChange={handleEditPatientChange}
-                  rows={3}
-                />
-              </div>
+              <PatientFormFields form={editPatientForm} errors={editPatientErrors} onChange={handleEditPatientChange} />
 
               <div className="rd-modal-footer">
                 <button type="button" className="rd-modal-cancel-btn" onClick={closeEditPatientModal}>Cancel</button>
