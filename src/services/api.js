@@ -299,3 +299,17 @@ export async function editPatient(patientId, patientData) {
   devLog('✅', 'Patient updated:', result);
   return result;
 }
+
+/**
+ * Update appointment status.
+ */
+export async function updateAppointmentStatus(appointmentId, status) {
+  devLog('🔄', 'Updating appointment status:', { appointmentId, status });
+  const query = buildQuery({ status });
+  const response = await authenticatedFetch(apiUrl(`/api/v1/appointments/${encodeURIComponent(appointmentId)}/status${query}`), {
+    method: 'PATCH',
+  });
+  const result = await parseJsonResponse(response, 'Status update failed');
+  devLog('✅', 'Appointment status updated:', result);
+  return result;
+}

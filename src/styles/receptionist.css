@@ -631,19 +631,9 @@
   background: #d1fae5;
 }
 
-.status-waiting-prediag {
+.status-in-progress {
   color: #92400e;
   background: #fef3c7;
-}
-
-.status-prediagnosed {
-  color: #9a3412;
-  background: #ffedd5;
-}
-
-.status-waiting-doctor {
-  color: #5b21b6;
-  background: #ede9fe;
 }
 
 .status-completed {
@@ -651,8 +641,87 @@
   background: #bbf7d0;
 }
 
+/* Status Dropdown */
+.rd-status-dropdown {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 5px 28px 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+}
+
+.rd-status-dropdown:hover {
+  border-color: #a5b4fc;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.rd-status-dropdown:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.rd-status-dropdown.status-registered {
+  color: #065f46;
+  background-color: #d1fae5;
+  border-color: #a7f3d0;
+}
+
+.rd-status-dropdown.status-in-progress {
+  color: #92400e;
+  background-color: #fef3c7;
+  border-color: #fde68a;
+}
+
+.rd-status-dropdown.status-completed {
+  color: #166534;
+  background-color: #bbf7d0;
+  border-color: #86efac;
+}
+
 .rd-error-msg {
   color: #dc2626;
+}
+
+.rd-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  margin: 8px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.rd-error-banner-close {
+  background: none;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.rd-error-banner-close:hover {
+  opacity: 1;
 }
 
 .rd-no-results {

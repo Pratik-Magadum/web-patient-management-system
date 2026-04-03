@@ -1,23 +1,35 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { deleteAppointment, editPatient, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone } from '../services/api';
+import { deleteAppointment, editPatient, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone, updateAppointmentStatus } from '../services/api';
 import '../styles/receptionist.css';
 
 // ─── Constants ──────────────────────────────────────
 
 const STATUS_CLASS_MAP = {
   'REGISTERED': 'status-registered',
-  'WAITING_FOR_PRE_DIAGNOSTIC': 'status-waiting-prediag',
-  'PRE_DIAGNOSED': 'status-prediagnosed',
-  'WAITING_FOR_DOCTOR': 'status-waiting-doctor',
+  'IN_PROGRESS': 'status-in-progress',
   'COMPLETED': 'status-completed',
 };
 
 const STATUS_DISPLAY = {
   'REGISTERED': 'Registered',
-  'WAITING_FOR_PRE_DIAGNOSTIC': 'Waiting for Pre-Diagnostic',
-  'PRE_DIAGNOSED': 'Pre-Diagnosed',
-  'WAITING_FOR_DOCTOR': 'Waiting for Doctor',
+  'IN_PROGRESS': 'In Progress',
   'COMPLETED': 'Completed',
+};
+
+/** Appointment status enum — defines the allowed workflow order. */
+const APPOINTMENT_STATUS = Object.freeze({
+  REGISTERED: 'REGISTERED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+});
+
+const STATUS_ORDER = [APPOINTMENT_STATUS.REGISTERED, APPOINTMENT_STATUS.IN_PROGRESS, APPOINTMENT_STATUS.COMPLETED];
+
+/** Numeric priority used for sorting rows by status. Lower = higher in the list. */
+const STATUS_SORT_PRIORITY = {
+  [APPOINTMENT_STATUS.REGISTERED]: 0,
+  [APPOINTMENT_STATUS.IN_PROGRESS]: 1,
+  [APPOINTMENT_STATUS.COMPLETED]: 2,
 };
 
 const VISIT_TYPE_DISPLAY = {
@@ -445,6 +457,17 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
     }
   };
 
+  const handleStatusChange = async (appointmentId, newStatus) => {
+    try {
+      await updateAppointmentStatus(appointmentId, newStatus);
+      setErrorMsg('');
+      refreshPatientList(pageNumber, pageSize);
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to update status.');
+      setTimeout(() => setErrorMsg(''), 5000);
+    }
+  };
+
   const handleFilterChange = (filter) => {
     setActiveFilter(filter);
     setPageNumber(0);
@@ -830,13 +853,16 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         </div>
 
         <div className="rd-patient-list">
+          {errorMsg && (
+            <div className="rd-error-banner">
+              <span>{errorMsg}</span>
+              <button className="rd-error-banner-close" onClick={() => setErrorMsg('')}>✕</button>
+            </div>
+          )}
           {loading && (
             <div className="rd-no-results">Loading patients...</div>
           )}
-          {!loading && errorMsg && (
-            <div className="rd-no-results rd-error-msg">{errorMsg}</div>
-          )}
-          {!loading && !errorMsg && patients.map((patient, index) => (
+          {!loading && [...patients].sort((a, b) => (STATUS_SORT_PRIORITY[a.appointmentStatus] ?? 99) - (STATUS_SORT_PRIORITY[b.appointmentStatus] ?? 99)).map((patient, index) => (
             <div key={patient.appointmentId || `${patient.patientName}-${index}`} className="rd-patient-card">
               <div className="rd-col-name rd-patient-name-cell">
                 <div className="rd-patient-avatar"><UserIcon /></div>
@@ -850,9 +876,15 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
               </div>
               <div className="rd-col-mobile rd-patient-mobile">{patient.mobileNumber}</div>
               <div className="rd-col-status">
-                <span className={`rd-patient-status ${STATUS_CLASS_MAP[patient.appointmentStatus] || ''}`}>
-                  {STATUS_DISPLAY[patient.appointmentStatus] || patient.appointmentStatus}
-                </span>
+                <select
+                  className={`rd-status-dropdown ${STATUS_CLASS_MAP[patient.appointmentStatus] || ''}`}
+                  value={patient.appointmentStatus}
+                  onChange={(e) => handleStatusChange(patient.appointmentId, e.target.value)}
+                >
+                  {STATUS_ORDER.map((status) => (
+                    <option key={status} value={status}>{STATUS_DISPLAY[status]}</option>
+                  ))}
+                </select>
               </div>
               <div className="rd-col-edit">
                 <button
@@ -877,7 +909,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
             </div>
           ))}
 
-          {!loading && !errorMsg && patients.length === 0 && (
+          {!loading && patients.length === 0 && (
             <div className="rd-no-results">No patients found matching your search.</div>
           )}
         </div>
