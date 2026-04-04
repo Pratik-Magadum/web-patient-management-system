@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { getAccessToken, getHospitalDetails, getUserRole } from '../services/api';
+import { getAccessToken, getFeatureFlags, getHospitalDetails, getUserRole } from '../services/api';
+import { FeatureProvider } from '../services/FeatureContext';
 import '../styles/loader.css';
+import DoctorDashboard from './DoctorDashboard';
 import Login from './Login';
 import NotRegistered from './NotRegistered';
 import ReceptionistDashboard from './ReceptionistDashboard';
@@ -15,6 +17,9 @@ export default function HospitalLoader() {
     // Check if user is already logged in
     return getAccessToken() ? getUserRole() : null;
   });
+  const [featureFlags, setFeatureFlags] = useState(null);
+  const [featuresLoading, setFeaturesLoading] = useState(false);
+  const [featureError, setFeatureError] = useState('');
 
   useEffect(() => {
     const loadHospital = async () => {
@@ -84,6 +89,33 @@ export default function HospitalLoader() {
     loadHospital();
   }, []);
 
+  // Fetch feature flags when user is logged in
+  useEffect(() => {
+    if (!loggedInRole) {
+      setFeatureFlags(null);
+      return;
+    }
+    let cancelled = false;
+    const loadFeatures = async () => {
+      setFeaturesLoading(true);
+      setFeatureError('');
+      try {
+        const flags = await getFeatureFlags();
+        if (!cancelled) setFeatureFlags(flags);
+      } catch (err) {
+        console.error('Failed to load feature flags, using defaults:', err);
+        if (!cancelled) {
+          setFeatureFlags({});
+          setFeatureError(err.message || 'Failed to load feature configuration.');
+        }
+      } finally {
+        if (!cancelled) setFeaturesLoading(false);
+      }
+    };
+    loadFeatures();
+    return () => { cancelled = true; };
+  }, [loggedInRole]);
+
   if (isLoading) {
     return (
       <div className="loader-container">
@@ -106,12 +138,29 @@ export default function HospitalLoader() {
   if (loggedInRole) {
     const handleLogout = () => {
       setLoggedInRole(null);
+      setFeatureFlags(null);
+      setFeatureError('');
     };
 
+    if (featuresLoading || featureFlags === null) {
+      return (
+        <div className="loader-container">
+          <div className="loader-spinner"></div>
+          <p>Loading dashboard...</p>
+        </div>
+      );
+    }
+
+    let dashboard;
     switch (loggedInRole) {
       case 'reciption':
       case 'RECEPTIONIST':
-        return <ReceptionistDashboard hospitalDetails={hospitalDetails} onLogout={handleLogout} />;
+        dashboard = <ReceptionistDashboard hospitalDetails={hospitalDetails} onLogout={handleLogout} featureError={featureError} />;
+        break;
+      case 'doctor':
+      case 'DOCTOR':
+        dashboard = <DoctorDashboard hospitalDetails={hospitalDetails} onLogout={handleLogout} featureError={featureError} />;
+        break;
       default:
         return (
           <div style={{ padding: 40, textAlign: 'center' }}>
@@ -120,6 +169,12 @@ export default function HospitalLoader() {
           </div>
         );
     }
+
+    return (
+      <FeatureProvider features={featureFlags}>
+        {dashboard}
+      </FeatureProvider>
+    );
   }
 
   // If hospital is registered, show login page

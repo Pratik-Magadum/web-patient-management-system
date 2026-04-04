@@ -313,3 +313,30 @@ export async function updateAppointmentStatus(appointmentId, status) {
   devLog('✅', 'Appointment status updated:', result);
   return result;
 }
+
+/**
+ * Feature flag keys used across the application.
+ */
+export const FEATURE_KEYS = Object.freeze({
+  SEARCH_PATIENTS: 'SEARCH_PATIENTS',
+  DATE_RANGE_FILTER: 'DATE_RANGE_FILTER',
+  STATS_CARDS: 'STATS_CARDS',
+  ADD_NEW_PATIENT: 'ADD_NEW_PATIENT',
+  EDIT_PATIENT: 'EDIT_PATIENT',
+  DELETE_PATIENT: 'DELETE_PATIENT',
+  FOLLOW_UP: 'FOLLOW_UP',
+  STATUS_MANAGEMENT: 'STATUS_MANAGEMENT',
+  PAGINATION: 'PAGINATION',
+});
+
+/**
+ * Fetch feature flags for the currently logged-in user's role.
+ * Returns an object like { SEARCH_PATIENTS: true, EDIT_PATIENT: false, ... }
+ */
+export async function getFeatureFlags() {
+  devLog('🚩', 'Fetching feature flags...');
+  const response = await authenticatedFetch(apiUrl('/api/v1/features'), { method: 'GET' });
+  const result = await parseJsonResponse(response, 'Failed to fetch feature flags');
+  devLog('✅', 'Feature flags received:', result);
+  return result;
+}

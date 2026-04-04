@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { deleteAppointment, editPatient, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone, updateAppointmentStatus } from '../services/api';
+import { deleteAppointment, editPatient, FEATURE_KEYS, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone, updateAppointmentStatus } from '../services/api';
+import { useFeature } from '../services/FeatureContext';
 import '../styles/receptionist.css';
 
 // ─── Constants ──────────────────────────────────────
@@ -309,7 +310,18 @@ function PatientFormFields({ form, errors, onChange }) {
   );
 }
 
-export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
+export default function ReceptionistDashboard({ hospitalDetails, onLogout, roleName = 'Receptionist', featureError = '' }) {
+  // Feature flags
+  const canSearch = useFeature(FEATURE_KEYS.SEARCH_PATIENTS);
+  const canDateRange = useFeature(FEATURE_KEYS.DATE_RANGE_FILTER);
+  const canStats = useFeature(FEATURE_KEYS.STATS_CARDS);
+  const canAddPatient = useFeature(FEATURE_KEYS.ADD_NEW_PATIENT);
+  const canEdit = useFeature(FEATURE_KEYS.EDIT_PATIENT);
+  const canDelete = useFeature(FEATURE_KEYS.DELETE_PATIENT);
+  const canFollowUp = useFeature(FEATURE_KEYS.FOLLOW_UP);
+  const canStatusChange = useFeature(FEATURE_KEYS.STATUS_MANAGEMENT);
+  const canPaginate = useFeature(FEATURE_KEYS.PAGINATION);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [fromDate, setFromDate] = useState(getToday);
   const [toDate, setToDate] = useState(getToday);
@@ -728,26 +740,35 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
           <span className="rd-hospital-icon">👁️</span>
           <div>
             <h1 className="rd-hospital-name">{hospitalDetails?.name || 'Eye Hospital Management'}</h1>
-            <p className="rd-role-label">Receptionist Dashboard</p>
+            <p className="rd-role-label">{roleName} Dashboard</p>
           </div>
         </div>
         <button className="rd-logout-btn" onClick={handleLogout}>Logout</button>
       </div>
 
+      {featureError && (
+        <div className="rd-error-banner">
+          <span>{featureError}</span>
+        </div>
+      )}
+
       {/* Search & Actions Bar */}
       <div className="rd-actions-bar">
-        <div className="rd-search-box">
-          <span className="rd-search-icon">⌕</span>
-          <input
-            type="text"
-            className="rd-search-input"
-            placeholder="Search patients by name or mobile..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setPageNumber(0); fetchBySearchOrRefresh(searchQuery, 0, pageSize); } }}
-          />
-        </div>
+        {canSearch && (
+          <div className="rd-search-box">
+            <span className="rd-search-icon">⌕</span>
+            <input
+              type="text"
+              className="rd-search-input"
+              placeholder="Search patients by name or mobile..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setPageNumber(0); fetchBySearchOrRefresh(searchQuery, 0, pageSize); } }}
+            />
+          </div>
+        )}
         <div className="rd-actions-right">
+          {canDateRange && (
           <div className="rd-date-range-wrapper">
             <button
               className="rd-date-range-btn"
@@ -815,24 +836,27 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
               </div>
             )}
           </div>
-          <button className="rd-new-patient-btn" onClick={openNewPatientModal}>+ New Patient</button>
-          <button className="rd-followup-btn" onClick={openFollowUpModal}>🔄 Follow-up</button>
+          )}
+          {canAddPatient && <button className="rd-new-patient-btn" onClick={openNewPatientModal}>+ New Patient</button>}
+          {canFollowUp && <button className="rd-followup-btn" onClick={openFollowUpModal}>🔄 Follow-up</button>}
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="rd-stats-row">
-        {STAT_CARDS.map(({ key, icon, label, stat }) => (
-          <div
-            key={key}
-            className={`rd-stat-card ${activeFilter === key ? 'rd-stat-active' : ''}`}
-            onClick={() => handleFilterChange(key)}
-          >
-            <div className="rd-stat-label">{icon} {label}</div>
-            <div className="rd-stat-value">{stats[stat]}</div>
-          </div>
-        ))}
-      </div>
+      {canStats && (
+        <div className="rd-stats-row">
+          {STAT_CARDS.map(({ key, icon, label, stat }) => (
+            <div
+              key={key}
+              className={`rd-stat-card ${activeFilter === key ? 'rd-stat-active' : ''}`}
+              onClick={() => handleFilterChange(key)}
+            >
+              <div className="rd-stat-label">{icon} {label}</div>
+              <div className="rd-stat-value">{stats[stat]}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Patient List */}
       <div className="rd-patient-list-container">
@@ -848,8 +872,8 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
           <div className="rd-col-datetime">Appointment Date & Time</div>
           <div className="rd-col-mobile">Mobile Number</div>
           <div className="rd-col-status">Status</div>
-          <div className="rd-col-edit">Edit</div>
-          <div className="rd-col-delete">Delete</div>
+          {canEdit && <div className="rd-col-edit">Edit</div>}
+          {canDelete && <div className="rd-col-delete">Delete</div>}
         </div>
 
         <div className="rd-patient-list">
@@ -876,36 +900,46 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
               </div>
               <div className="rd-col-mobile rd-patient-mobile">{patient.mobileNumber}</div>
               <div className="rd-col-status">
-                <select
-                  className={`rd-status-dropdown ${STATUS_CLASS_MAP[patient.appointmentStatus] || ''}`}
-                  value={patient.appointmentStatus}
-                  onChange={(e) => handleStatusChange(patient.appointmentId, e.target.value)}
-                >
-                  {STATUS_ORDER.map((status) => (
-                    <option key={status} value={status}>{STATUS_DISPLAY[status]}</option>
-                  ))}
-                </select>
+                {canStatusChange ? (
+                  <select
+                    className={`rd-status-dropdown ${STATUS_CLASS_MAP[patient.appointmentStatus] || ''}`}
+                    value={patient.appointmentStatus}
+                    onChange={(e) => handleStatusChange(patient.appointmentId, e.target.value)}
+                  >
+                    {STATUS_ORDER.map((status) => (
+                      <option key={status} value={status}>{STATUS_DISPLAY[status]}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className={`rd-status-badge ${STATUS_CLASS_MAP[patient.appointmentStatus] || ''}`}>
+                    {STATUS_DISPLAY[patient.appointmentStatus] || patient.appointmentStatus}
+                  </span>
+                )}
               </div>
-              <div className="rd-col-edit">
-                <button
-                  className="rd-action-btn rd-edit-btn"
-                  title="Edit patient"
-                  onClick={() => handleEditPatient(patient)}
-                >
-                  <EditIcon />
-                  <span>Edit</span>
-                </button>
-              </div>
-              <div className="rd-col-delete">
-                <button
-                  className="rd-action-btn rd-delete-btn"
-                  title="Delete patient"
-                  onClick={() => handleDeletePatient(patient.appointmentId)}
-                >
-                  <DeleteIcon />
-                  <span>Delete</span>
-                </button>
-              </div>
+              {canEdit && (
+                <div className="rd-col-edit">
+                  <button
+                    className="rd-action-btn rd-edit-btn"
+                    title="Edit patient"
+                    onClick={() => handleEditPatient(patient)}
+                  >
+                    <EditIcon />
+                    <span>Edit</span>
+                  </button>
+                </div>
+              )}
+              {canDelete && (
+                <div className="rd-col-delete">
+                  <button
+                    className="rd-action-btn rd-delete-btn"
+                    title="Delete patient"
+                    onClick={() => handleDeletePatient(patient.appointmentId)}
+                  >
+                    <DeleteIcon />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              )}
             </div>
           ))}
 
@@ -915,7 +949,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
         </div>
 
         {/* Pagination */}
-        {totalPages > 0 && (
+        {canPaginate && totalPages > 0 && (
           <div className="rd-pagination">
             <div className="rd-pagination-info">
               Showing {pageNumber * pageSize + 1}–{Math.min((pageNumber + 1) * pageSize, totalElements)} of {totalElements}
@@ -976,7 +1010,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       </div>
 
       {/* ─── New Patient Modal ─────────────────────── */}
-      {showNewPatientModal && (
+      {canAddPatient && showNewPatientModal && (
         <div className="rd-modal-overlay" onClick={closeNewPatientModal}>
           <div className="rd-modal rd-modal-new-patient" onClick={(e) => e.stopPropagation()}>
             <div className="rd-modal-header">
@@ -1008,7 +1042,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       )}
 
       {/* ─── Edit Patient Modal ──────────────────────── */}
-      {showEditPatientModal && (
+      {canEdit && showEditPatientModal && (
         <div className="rd-modal-overlay" onClick={closeEditPatientModal}>
           <div className="rd-modal rd-modal-new-patient" onClick={(e) => e.stopPropagation()}>
             <div className="rd-modal-header">
@@ -1040,7 +1074,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout }) {
       )}
 
       {/* ─── Follow-up Patient Modal ─────────────────── */}
-      {showFollowUpModal && (
+      {canFollowUp && showFollowUpModal && (
         <div className="rd-modal-overlay" onClick={closeFollowUpModal}>
           <div className="rd-modal rd-modal-followup" onClick={(e) => e.stopPropagation()}>
             <div className="rd-modal-header">
