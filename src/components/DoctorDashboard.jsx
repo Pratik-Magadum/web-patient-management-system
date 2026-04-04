@@ -1,7 +1,8 @@
 import ReceptionistDashboard from './ReceptionistDashboard';
 
 export default function DoctorDashboard({ hospitalDetails, onLogout, featureError }) {
-  return (
+ 
+    return (
     <ReceptionistDashboard
       hospitalDetails={hospitalDetails}
       onLogout={onLogout}
