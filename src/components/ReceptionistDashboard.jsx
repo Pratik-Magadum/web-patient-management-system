@@ -994,19 +994,41 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout, roleN
               </div>
               {canHistory && isExpanded && (
                 <div className="rd-history-panel">
-                  <div className="rd-history-title">Patient History:</div>
+                  <div className="rd-history-header">
+                    <span className="rd-history-title">Patient History</span>
+                    <span className="rd-history-count">{history ? history.length : 0} visit{history && history.length !== 1 ? 's' : ''}</span>
+                  </div>
                   {isHistoryLoading && <div className="rd-history-loading">Loading history...</div>}
                   {!isHistoryLoading && history && history.length === 0 && (
                     <div className="rd-history-empty">No history found for this patient.</div>
                   )}
-                  {!isHistoryLoading && history && history.length > 0 && history.map((entry, i) => (
-                    <div key={entry.id || i} className="rd-history-entry">
-                      <div className="rd-history-date">{formatDisplayDate(entry.date || entry.appointmentDate)}</div>
-                      {entry.diagnosis && <div className="rd-history-detail"><strong>Diagnosis:</strong> {entry.diagnosis}</div>}
-                      {entry.medicines && <div className="rd-history-detail"><strong>Medicines:</strong> {entry.medicines}</div>}
-                      {entry.notes && <div className="rd-history-detail"><strong>Notes:</strong> {entry.notes}</div>}
+                  {!isHistoryLoading && history && history.length > 0 && (
+                    <div className="rd-history-timeline">
+                      {history.map((entry, i) => (
+                        <div key={entry.appointmentId || i} className="rd-history-card">
+                          <div className="rd-history-dot" />
+                          <div className="rd-history-card-content">
+                            <div className="rd-history-card-top">
+                              <span className="rd-history-date">{formatDisplayDate(entry.date)} · {formatTime12h(entry.time)}</span>
+                              <span className={`rd-history-status ${STATUS_CLASS_MAP[entry.status] || ''}`}>{STATUS_DISPLAY[entry.status] || entry.status}</span>
+                            </div>
+                            <div className="rd-history-meta">
+                              <span className="rd-history-visit-type">{VISIT_TYPE_DISPLAY[entry.visitType] || entry.visitType}</span>
+                              {entry.doctorName && <span className="rd-history-doctor">👨‍⚕️ {entry.doctorName}</span>}
+                            </div>
+                            {(entry.diagnosis || entry.medicines || entry.notes || entry.followUpDate) && (
+                              <div className="rd-history-details">
+                                {entry.diagnosis && <div className="rd-history-detail"><span className="rd-history-label">Diagnosis</span><span>{entry.diagnosis}</span></div>}
+                                {entry.medicines && <div className="rd-history-detail"><span className="rd-history-label">Medicines</span><span>{entry.medicines}</span></div>}
+                                {entry.notes && <div className="rd-history-detail"><span className="rd-history-label">Notes</span><span>{entry.notes}</span></div>}
+                                {entry.followUpDate && <div className="rd-history-detail"><span className="rd-history-label">Follow-up</span><span>{formatDisplayDate(entry.followUpDate)}</span></div>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
