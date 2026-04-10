@@ -457,7 +457,7 @@
 /* Patient Table Header */
 .rd-patient-table-header {
   display: grid;
-  grid-template-columns: 2.5fr 2fr 1.5fr 120px 80px 90px;
+  grid-template-columns: 2.5fr 2fr 1.5fr 120px 80px 90px 50px;
   align-items: center;
   gap: 12px;
   padding: 14px 24px;
@@ -478,11 +478,10 @@
 
 .rd-patient-card {
   display: grid;
-  grid-template-columns: 2.5fr 2fr 1.5fr 120px 80px 90px;
+  grid-template-columns: 2.5fr 2fr 1.5fr 120px 80px 90px 50px;
   align-items: center;
   gap: 12px;
   padding: 18px 24px;
-  border-bottom: 1px solid #f1f5f9;
   transition: background 0.2s, box-shadow 0.2s;
 }
 
@@ -1122,6 +1121,97 @@
 
 .rd-followup-item:last-child {
   border-bottom: none;
+}
+
+/* ─── Patient History Dropdown ─── */
+.rd-patient-card-wrapper {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.rd-patient-card-wrapper:last-child {
+  border-bottom: none;
+}
+
+.rd-patient-card-wrapper:hover > .rd-patient-card {
+  background: #f8fafc;
+  box-shadow: inset 3px 0 0 #4f46e5;
+}
+
+.rd-col-history {
+  text-align: center;
+  min-width: 50px;
+}
+
+.rd-history-btn {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px 8px;
+  color: #6b7280;
+  transition: color 0.2s, background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rd-history-btn:hover {
+  background: #f3f4f6;
+  color: #4f46e5;
+}
+
+.rd-history-panel {
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  padding: 16px 24px 16px 40px;
+  animation: rd-history-slide 0.2s ease;
+}
+
+@keyframes rd-history-slide {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 500px; }
+}
+
+.rd-history-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 12px;
+}
+
+.rd-history-loading,
+.rd-history-empty {
+  font-size: 13px;
+  color: #9ca3af;
+  padding: 8px 0;
+}
+
+.rd-history-entry {
+  padding: 10px 0 10px 14px;
+  border-left: 3px solid #4f46e5;
+  margin-bottom: 10px;
+}
+
+.rd-history-entry:last-child {
+  margin-bottom: 0;
+}
+
+.rd-history-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.rd-history-detail {
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.rd-history-detail strong {
+  color: #92400e;
+  font-weight: 600;
 }
 
 .rd-followup-item:hover {

@@ -327,6 +327,7 @@ export const FEATURE_KEYS = Object.freeze({
   FOLLOW_UP: 'FOLLOW_UP',
   STATUS_MANAGEMENT: 'STATUS_MANAGEMENT',
   PAGINATION: 'PAGINATION',
+  PATIENT_HISTORY: 'PATIENT_HISTORY',
 });
 
 /**
@@ -338,5 +339,17 @@ export async function getFeatureFlags() {
   const response = await authenticatedFetch(apiUrl('/api/v1/features'), { method: 'GET' });
   const result = await parseJsonResponse(response, 'Failed to fetch feature flags');
   devLog('✅', 'Feature flags received:', result);
+  return result;
+}
+
+/**
+ * Fetch patient history (past visits) by patient ID.
+ * Returns an array of history entries.
+ */
+export async function getPatientHistory(patientId) {
+  devLog('📋', 'Fetching patient history:', patientId);
+  const response = await authenticatedFetch(apiUrl(`/api/v1/patients/${encodeURIComponent(patientId)}/history`), { method: 'GET' });
+  const result = await parseJsonResponse(response, 'Failed to fetch patient history');
+  devLog('✅', 'Patient history received:', result);
   return result;
 }

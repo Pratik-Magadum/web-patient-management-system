@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { deleteAppointment, editPatient, FEATURE_KEYS, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone, updateAppointmentStatus } from '../services/api';
+import { deleteAppointment, editPatient, FEATURE_KEYS, getPatientHistory, logoutUser, registerFollowUpPatient, registerNewPatient, searchPatients, searchPatientsByNamePhone, updateAppointmentStatus } from '../services/api';
 import { useFeature } from '../services/FeatureContext';
 import '../styles/receptionist.css';
 
@@ -86,6 +86,12 @@ const DeleteIcon = () => (
     <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
     <path d="M10 11v6" />
     <path d="M14 11v6" />
+  </svg>
+);
+
+const ChevronIcon = ({ open }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+    <polyline points="6 9 12 15 18 9" />
   </svg>
 );
 
@@ -321,6 +327,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout, roleN
   const canFollowUp = useFeature(FEATURE_KEYS.FOLLOW_UP);
   const canStatusChange = useFeature(FEATURE_KEYS.STATUS_MANAGEMENT);
   const canPaginate = useFeature(FEATURE_KEYS.PAGINATION);
+  const canHistory = useFeature(FEATURE_KEYS.PATIENT_HISTORY);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [fromDate, setFromDate] = useState(getToday);
@@ -369,6 +376,11 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout, roleN
   const [followUpDate, setFollowUpDate] = useState(getToday);
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpNotes, setFollowUpNotes] = useState('');
+
+  // ─── Patient History State ────────────────────────
+  const [expandedPatientId, setExpandedPatientId] = useState(null);
+  const [historyData, setHistoryData] = useState({});
+  const [historyLoading, setHistoryLoading] = useState({});
 
   const today = useMemo(getToday, []);
 
@@ -666,6 +678,27 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout, roleN
     }
   };
 
+  // ─── Patient History Toggle ───────────────────────
+
+  const togglePatientHistory = async (patientId) => {
+    if (expandedPatientId === patientId) {
+      setExpandedPatientId(null);
+      return;
+    }
+    setExpandedPatientId(patientId);
+    if (historyData[patientId]) return;
+    setHistoryLoading((prev) => ({ ...prev, [patientId]: true }));
+    try {
+      const data = await getPatientHistory(patientId);
+      setHistoryData((prev) => ({ ...prev, [patientId]: Array.isArray(data) ? data : [] }));
+    } catch (err) {
+      setHistoryData((prev) => ({ ...prev, [patientId]: [] }));
+      setErrorMsg(err.message || 'Failed to load patient history.');
+    } finally {
+      setHistoryLoading((prev) => ({ ...prev, [patientId]: false }));
+    }
+  };
+
   // ─── Calendar & Date Range ────────────────────────
 
   const handleLogout = async () => {
@@ -874,6 +907,7 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout, roleN
           <div className="rd-col-status">Status</div>
           {canEdit && <div className="rd-col-edit">Edit</div>}
           {canDelete && <div className="rd-col-delete">Delete</div>}
+          {canHistory && <div className="rd-col-history">History</div>}
         </div>
 
         <div className="rd-patient-list">
@@ -886,8 +920,14 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout, roleN
           {loading && (
             <div className="rd-no-results">Loading patients...</div>
           )}
-          {!loading && [...patients].sort((a, b) => (STATUS_SORT_PRIORITY[a.appointmentStatus] ?? 99) - (STATUS_SORT_PRIORITY[b.appointmentStatus] ?? 99)).map((patient, index) => (
-            <div key={patient.appointmentId || `${patient.patientName}-${index}`} className="rd-patient-card">
+          {!loading && [...patients].sort((a, b) => (STATUS_SORT_PRIORITY[a.appointmentStatus] ?? 99) - (STATUS_SORT_PRIORITY[b.appointmentStatus] ?? 99)).map((patient, index) => {
+            const pid = patient.patientId;
+            const isExpanded = expandedPatientId === pid;
+            const history = historyData[pid];
+            const isHistoryLoading = historyLoading[pid];
+            return (
+            <div key={patient.appointmentId || `${patient.patientName}-${index}`} className="rd-patient-card-wrapper">
+              <div className="rd-patient-card">
               <div className="rd-col-name rd-patient-name-cell">
                 <div className="rd-patient-avatar"><UserIcon /></div>
                 <div className="rd-patient-info">
@@ -940,8 +980,38 @@ export default function ReceptionistDashboard({ hospitalDetails, onLogout, roleN
                   </button>
                 </div>
               )}
+              {canHistory && (
+                <div className="rd-col-history">
+                  <button
+                    className="rd-action-btn rd-history-btn"
+                    title="View patient history"
+                    onClick={() => togglePatientHistory(pid)}
+                  >
+                    <ChevronIcon open={isExpanded} />
+                  </button>
+                </div>
+              )}
+              </div>
+              {canHistory && isExpanded && (
+                <div className="rd-history-panel">
+                  <div className="rd-history-title">Patient History:</div>
+                  {isHistoryLoading && <div className="rd-history-loading">Loading history...</div>}
+                  {!isHistoryLoading && history && history.length === 0 && (
+                    <div className="rd-history-empty">No history found for this patient.</div>
+                  )}
+                  {!isHistoryLoading && history && history.length > 0 && history.map((entry, i) => (
+                    <div key={entry.id || i} className="rd-history-entry">
+                      <div className="rd-history-date">{formatDisplayDate(entry.date || entry.appointmentDate)}</div>
+                      {entry.diagnosis && <div className="rd-history-detail"><strong>Diagnosis:</strong> {entry.diagnosis}</div>}
+                      {entry.medicines && <div className="rd-history-detail"><strong>Medicines:</strong> {entry.medicines}</div>}
+                      {entry.notes && <div className="rd-history-detail"><strong>Notes:</strong> {entry.notes}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
 
           {!loading && patients.length === 0 && (
             <div className="rd-no-results">No patients found matching your search.</div>
